@@ -60,8 +60,8 @@ describe("Having a entity manager", () => {
 				unMarshal,
 			),
 			documentClient as any as DocumentClient,
-			marshal,
 			tableName,
+			marshal,
 		);
 		entityManager.waitTimeBetweenTries = 0;
 		entity = await entityManager.get({id: entityId});

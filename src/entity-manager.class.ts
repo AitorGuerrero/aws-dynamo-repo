@@ -17,15 +17,17 @@ export default class DynamoEntityManager<Entity>
 	public  maxTries = 3;
 	private tracked: Map<string, Entity>;
 	private initialStatus: Map<string, string>;
+	private marshal: (e: Entity) => DocumentClient.AttributeMap;
 
 	constructor(
 		private repo: IDynamoDBRepository<Entity>,
 		private dc: DocumentClient,
-		private marshal: (entity: Entity) => DocumentClient.AttributeMap,
 		private tableName: string,
+		marshal?: (entity: Entity) => DocumentClient.AttributeMap,
 	) {
 		this.initialStatus = new Map();
 		this.tracked = new Map();
+		this.marshal = marshal !== undefined ? marshal : defaultMarshal;
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -129,4 +131,8 @@ export default class DynamoEntityManager<Entity>
 			this.initialStatus.set(id, JSON.stringify(entity));
 		}
 	}
+}
+
+function defaultMarshal(e: any) {
+	return JSON.parse(JSON.stringify(e));
 }
