@@ -1,7 +1,8 @@
-import {DocumentClient} from "aws-sdk/lib/dynamodb/document_client";
+import {DynamoDB} from "aws-sdk";
 import {setTimeout} from "timers";
 import {IDynamoDBRepository, ISearchInput} from "./repository.class";
 import TrackedEntitiesCollisionError from "./tracked-entities-collision.error";
+import DocumentClient = DynamoDB.DocumentClient;
 
 export interface IPersistingRepository<Entity> {
 	persist: (e: Entity) => any;
