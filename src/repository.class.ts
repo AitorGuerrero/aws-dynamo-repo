@@ -38,6 +38,7 @@ export interface IDynamoDBRepository<Entity> {
 	get(key: DocumentClient.Key): Promise<Entity>;
 	getList(ids: DocumentClient.Key[]): Promise<Map<DocumentClient.Key, Entity>>;
 	search(input: ISearchInput): EntityGenerator<Entity>;
+	getEntityKey(e: Entity): DocumentClient.Key;
 	getEntityId(e: Entity): string;
 }
 
@@ -142,13 +143,17 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	}
 
 	public getEntityId(entity: Entity) {
+		return this.stringifyKey(this.getEntityKey(entity));
+	}
+
+	public getEntityKey(entity: Entity) {
 		const key: DocumentClient.Key = {};
 		key[this.hashKey] = (entity as any)[this.hashKey];
 		if (this.rangeKey) {
 			key[this.rangeKey] = (entity as any)[this.rangeKey];
 		}
 
-		return this.stringifyKey(key);
+		return key;
 	}
 
 	private searchInDocumentClient(input: ISearchInput) {

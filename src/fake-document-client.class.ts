@@ -108,6 +108,14 @@ export default class FakeDocumentClient<Entity> {
 		cb(null, {});
 	}
 
+	public async delete(
+		input: DocumentClient.DeleteItemInput,
+		cb: (err?: Error, result?: DocumentClient.DeleteItemOutput) => any,
+	) {
+		this.collection.delete(this.stringifyKey(input.Key));
+		cb(null, {});
+	}
+
 	public stop() {
 		this.resumed = new Promise((rs) => this.resumedEventEmitter.once("resumed", () => rs()));
 	}

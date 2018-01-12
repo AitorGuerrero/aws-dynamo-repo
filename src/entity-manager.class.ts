@@ -18,6 +18,7 @@ export default class DynamoEntityManager<Entity>
 	private tracked: Map<string, Entity>;
 	private initialStatus: Map<string, string>;
 	private marshal: (e: Entity) => DocumentClient.AttributeMap;
+	private deleted: Map<string, Entity>;
 
 	constructor(
 		private repo: IDynamoDBRepository<Entity>,
@@ -27,6 +28,7 @@ export default class DynamoEntityManager<Entity>
 	) {
 		this.initialStatus = new Map();
 		this.tracked = new Map();
+		this.deleted = new Map();
 		this.marshal = marshal !== undefined ? marshal : defaultMarshal;
 	}
 
@@ -71,6 +73,9 @@ export default class DynamoEntityManager<Entity>
 		for (const entity of (changedEntities)) {
 			processed.push(this.updateItem(entity));
 		}
+		for (const deleted of this.deleted.values()) {
+			processed.push(this.deleteItem(deleted));
+		}
 
 		await Promise.all(processed);
 	}
@@ -79,7 +84,18 @@ export default class DynamoEntityManager<Entity>
 		return this.repo.getEntityId(entity);
 	}
 
+	public getEntityKey(entity: Entity) {
+		return this.repo.getEntityKey(entity);
+	}
+
+	public delete(entity: Entity) {
+		this.deleted.set(this.getEntityId(entity), entity);
+	}
+
 	private async updateItem(entity: Entity) {
+		if (this.deleted.get(this.getEntityId(entity))) {
+			return;
+		}
 		let tries = 1;
 		let saved = false;
 		const request = {TableName: this.tableName, Item: this.marshal(entity)};
@@ -130,6 +146,16 @@ export default class DynamoEntityManager<Entity>
 		if (isNew !== true) {
 			this.initialStatus.set(id, JSON.stringify(entity));
 		}
+	}
+
+	private deleteItem(item: Entity) {
+		return new Promise(
+			(rs, rj) => this.dc.delete({
+				Key: this.repo.getEntityKey(item),
+				TableName: this.tableName,
+			},
+			(err) => err ? rj(err) : rs()),
+		);
 	}
 }
 

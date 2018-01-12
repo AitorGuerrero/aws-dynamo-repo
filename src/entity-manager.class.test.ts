@@ -99,6 +99,22 @@ describe("Having a entity manager", () => {
 				const item = await documentClient.getByKey({id: newId});
 				expect(item.flag).to.be.eq(marshalFlag(flag));
 			});
+			describe("and deleting it", () => {
+				beforeEach(() => entityManager.delete({id: entityId}));
+				describe("and flushed", () => {
+					beforeEach(() => entityManager.flush());
+					it("Should not be added to the collection", () => {
+						expect(documentClient.getByKey({id: entityId})).to.be.undefined;
+					});
+				});
+			});
+		});
+	});
+	describe("when deleting a entity", () => {
+		it("should remove it from collection", async () => {
+			entityManager.delete({id: entityId});
+			await entityManager.flush();
+			expect(documentClient.getByKey({id: entityId})).to.be.undefined;
 		});
 	});
 });
