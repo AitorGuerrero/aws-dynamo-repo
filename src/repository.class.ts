@@ -40,6 +40,7 @@ export interface IDynamoDBRepository<Entity> {
 	search(input: ISearchInput): EntityGenerator<Entity>;
 	getEntityKey(e: Entity): DocumentClient.Key;
 	getEntityId(e: Entity): string;
+	addToCache(e: Entity): void;
 }
 
 export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
@@ -156,6 +157,14 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return key;
 	}
 
+	public addToCache(entity: Entity) {
+		const id = this.getEntityId(entity);
+		if (this.cache.has(id)) {
+			return;
+		}
+		this.cache.set(id, Promise.resolve(entity));
+	}
+
 	private searchInDocumentClient(input: ISearchInput) {
 
 		const getNextBlock = this.buildScanBlockGenerator(input);
@@ -241,13 +250,5 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 			return response;
 		};
-	}
-
-	private addToCache(entity: Entity) {
-		const id = this.getEntityId(entity);
-		if (this.cache.has(id)) {
-			return;
-		}
-		this.cache.set(id, Promise.resolve(entity));
 	}
 }

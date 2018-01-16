@@ -61,6 +61,11 @@ export default class DynamoEntityManager<Entity>
 
 	public persist(entity: Entity) {
 		this.track(entity, true);
+		this.addToCache(entity);
+	}
+
+	public addToCache(entity: Entity) {
+		this.repo.addToCache(entity);
 	}
 
 	public clear() {
