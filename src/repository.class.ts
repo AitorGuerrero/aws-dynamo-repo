@@ -171,7 +171,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 				const dynamoResponse = await getNextBlock();
 				batch = dynamoResponse.Items;
 				sourceIsEmpty = dynamoResponse.LastEvaluatedKey === undefined;
-				if (batch === undefined) {
+				if (batch === undefined || batch.length === 0) {
 					return;
 				}
 			}
