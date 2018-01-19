@@ -19,17 +19,20 @@ export default class DynamoEntityManager<Entity>
 	private initialStatus: Map<string, string>;
 	private marshal: (e: Entity) => DocumentClient.AttributeMap;
 	private deleted: Map<string, Entity>;
+	private waitTimeReached: Promise<any>;
 
 	constructor(
 		private repo: IDynamoDBRepository<Entity>,
 		private dc: DocumentClient,
 		private tableName: string,
 		marshal?: (entity: Entity) => DocumentClient.AttributeMap,
+		public writeWaitTime?: number,
 	) {
 		this.initialStatus = new Map();
 		this.tracked = new Map();
 		this.deleted = new Map();
 		this.marshal = marshal !== undefined ? marshal : defaultMarshal;
+		this.waitTimeReached = Promise.resolve();
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -106,9 +109,11 @@ export default class DynamoEntityManager<Entity>
 		const request = {TableName: this.tableName, Item: this.marshal(entity)};
 		while (saved === false) {
 			try {
+				await this.waitTimeReached;
 				await new Promise<DocumentClient.PutItemOutput>(
 					(rs, rj) => this.dc.put(request, (err, res) => err ? rj(err) : rs(res)),
 				);
+				this.resetWaitTime();
 				saved = true;
 			} catch (err) {
 				if (tries++ < this.maxTries) {
@@ -153,14 +158,22 @@ export default class DynamoEntityManager<Entity>
 		}
 	}
 
-	private deleteItem(item: Entity) {
-		return new Promise(
+	private async deleteItem(item: Entity) {
+		await this.waitTimeReached;
+		const response = new Promise(
 			(rs, rj) => this.dc.delete({
 				Key: this.repo.getEntityKey(item),
 				TableName: this.tableName,
 			},
 			(err) => err ? rj(err) : rs()),
 		);
+		this.resetWaitTime();
+
+		return response;
+	}
+
+	private resetWaitTime() {
+		this.waitTimeReached = new Promise((rs) => setTimeout(rs, this.writeWaitTime));
 	}
 }
 
