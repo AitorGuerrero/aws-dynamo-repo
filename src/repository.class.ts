@@ -53,12 +53,14 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	private cache: Map<string, Promise<Entity>>;
 	private hashKey: string;
 	private rangeKey: string;
+	private waitTimeReached: Promise<any>;
 
 	constructor(
 		private dc: DocumentClient,
 		private tableName: string,
 		private keySchema: DocumentClient.KeySchema,
 		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
+		public readWaitTime?: number,
 	) {
 		this.cache = new Map();
 		this.unMarshal = unMarshal === undefined ? (i: any) => i : unMarshal;
@@ -67,6 +69,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		if (rangeSchema) {
 			this.rangeKey = rangeSchema.AttributeName;
 		}
+		this.waitTimeReached = Promise.resolve();
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -124,6 +127,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	public async count(input: ICountInput) {
 		const documentClientInput = Object.assign({}, input, {TableName: this.tableName, Select: "COUNT"});
 		const inputIsQuery = DynamoDBRepository.isQueryInput(input);
+		await this.waitTimeReached;
 		const response = await (inputIsQuery ?
 			new Promise<DocumentClient.QueryOutput>(
 				(rs, rj) => this.dc.query(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
@@ -131,6 +135,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			new Promise<DocumentClient.ScanOutput>(
 				(rs, rj) => this.dc.scan(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
 			));
+		this.resetWaitTime();
 
 		return response.Count;
 	}
@@ -194,9 +199,11 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			Key,
 			TableName: this.tableName,
 		};
+		await this.waitTimeReached;
 		const response = await new Promise<DocumentClient.GetItemOutput>(
 			(rs, rj) => this.dc.get(input, (err, res) => err ? rj(err) : rs(res)),
 		);
+		this.resetWaitTime();
 
 		return response.Item === undefined ? undefined : this.unMarshal(response.Item);
 	}
@@ -207,9 +214,11 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 				[this.tableName]: {Keys: keys},
 			},
 		};
+		await this.waitTimeReached;
 		const response = await new Promise<DocumentClient.BatchGetItemOutput>(
 			(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
 		);
+		this.resetWaitTime();
 		const result = new Map<DocumentClient.Key, Entity>();
 		for (const item of response.Responses[this.tableName]) {
 			const entity = this.unMarshal(item);
@@ -235,6 +244,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 				return;
 			}
 			const blockInput = Object.assign({ExclusiveStartKey: lastEvaluatedKey}, documentClientInput);
+			await this.waitTimeReached;
 			const response = await (inputIsQuery ?
 				new Promise<DocumentClient.QueryOutput>(
 					(rs, rj) => this.dc.query(blockInput, (err, res) => err ? rj(err) : rs(res)),
@@ -243,6 +253,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 					(rs, rj) => this.dc.scan(blockInput, (err, res) => err ? rj(err) : rs(res)),
 				)
 			);
+			this.resetWaitTime();
 			lastEvaluatedKey = response.LastEvaluatedKey;
 			if (undefined === lastEvaluatedKey) {
 				sourceIsEmpty = true;
@@ -250,5 +261,9 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 			return response;
 		};
+	}
+
+	private resetWaitTime() {
+		this.waitTimeReached = new Promise((rs) => setTimeout(rs, this.readWaitTime));
 	}
 }
