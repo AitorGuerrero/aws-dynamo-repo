@@ -41,6 +41,7 @@ export interface IDynamoDBRepository<Entity> {
 	getEntityKey(e: Entity): DocumentClient.Key;
 	getEntityId(e: Entity): string;
 	addToCache(e: Entity): void;
+	clear(): void;
 }
 
 export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
@@ -140,7 +141,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return response.Count;
 	}
 
-	public clearCache() {
+	public clear() {
 		this.cache.clear();
 	}
 

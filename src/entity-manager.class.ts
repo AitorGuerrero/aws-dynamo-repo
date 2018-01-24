@@ -6,7 +6,6 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 export interface IPersistingRepository<Entity> {
 	persist: (e: Entity) => any;
-	clear: () => any;
 	flush: () => Promise<void>;
 }
 
@@ -73,6 +72,7 @@ export default class DynamoEntityManager<Entity>
 
 	public clear() {
 		this.tracked.clear();
+		this.repo.clear();
 	}
 
 	public async flush() {
@@ -116,9 +116,7 @@ export default class DynamoEntityManager<Entity>
 				this.resetWaitTime();
 				saved = true;
 			} catch (err) {
-				if (tries++ < this.maxTries) {
-					await new Promise((rs) => setTimeout(() => rs(), this.waitTimeBetweenTries));
-				} else {
+				if (tries++ > this.maxTries) {
 					throw err;
 				}
 			}
