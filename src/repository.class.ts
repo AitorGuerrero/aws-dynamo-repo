@@ -50,7 +50,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return input.KeyConditionExpression !== undefined;
 	}
 
-	public awaitBetweenRequests: number;
+	public awaitBetweenRequests = 0;
 
 	private queueFreePromise: Promise<any>;
 	private unMarshal: (item: DocumentClient.AttributeMap) => Entity;

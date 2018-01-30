@@ -12,26 +12,27 @@ export interface IPersistingRepository<Entity> {
 export default class DynamoEntityManager<Entity>
 	implements IDynamoDBRepository<Entity>, IPersistingRepository<Entity> {
 
-	public waitTimeBetweenTries = 1000;
+	public waitBetweenRequests = 0;
+	public waitBetweenTries = 1000;
 	public  maxTries = 3;
+
+	private queueFreePromise: Promise<any>;
 	private tracked: Map<string, Entity>;
 	private initialStatus: Map<string, string>;
 	private marshal: (e: Entity) => DocumentClient.AttributeMap;
 	private deleted: Map<string, Entity>;
-	private waitTimeReached: Promise<any>;
 
 	constructor(
 		private repo: IDynamoDBRepository<Entity>,
 		private dc: DocumentClient,
 		private tableName: string,
 		marshal?: (entity: Entity) => DocumentClient.AttributeMap,
-		public writeWaitTime?: number,
 	) {
 		this.initialStatus = new Map();
 		this.tracked = new Map();
 		this.deleted = new Map();
 		this.marshal = marshal !== undefined ? marshal : defaultMarshal;
-		this.waitTimeReached = Promise.resolve();
+		this.queueFreePromise = Promise.resolve();
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -77,15 +78,12 @@ export default class DynamoEntityManager<Entity>
 
 	public async flush() {
 		const changedEntities = this.getChangedEntities();
-		const processed: Array<Promise<any>> = [];
 		for (const entity of (changedEntities)) {
-			processed.push(this.updateItem(entity));
+			await this.updateItem(entity);
 		}
 		for (const deleted of this.deleted.values()) {
-			processed.push(this.deleteItem(deleted));
+			await this.deleteItem(deleted);
 		}
-
-		await Promise.all(processed);
 	}
 
 	public getEntityId(entity: Entity) {
@@ -101,26 +99,42 @@ export default class DynamoEntityManager<Entity>
 	}
 
 	private async updateItem(entity: Entity) {
-		if (this.deleted.get(this.getEntityId(entity))) {
-			return;
-		}
-		let tries = 1;
-		let saved = false;
-		const request = {TableName: this.tableName, Item: this.marshal(entity)};
-		while (saved === false) {
-			try {
-				await this.waitTimeReached;
-				await new Promise<DocumentClient.PutItemOutput>(
-					(rs, rj) => this.dc.put(request, (err, res) => err ? rj(err) : rs(res)),
-				);
-				this.resetWaitTime();
-				saved = true;
-			} catch (err) {
-				if (tries++ > this.maxTries) {
-					throw err;
+		return this.enqueueRequest(async () => {
+			if (this.deleted.get(this.getEntityId(entity))) {
+				return;
+			}
+			let tries = 1;
+			let saved = false;
+			const request = {TableName: this.tableName, Item: this.marshal(entity)};
+			while (saved === false) {
+				try {
+					await this.asyncPut(request);
+					saved = true;
+				} catch (err) {
+					if (tries++ > this.maxTries) {
+						throw err;
+					}
+					await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
 				}
 			}
-		}
+		});
+	}
+
+	private enqueueRequest<Response>(process: () => Response): Promise<Response> {
+		return new Promise(async (resolveRequest, rejectRequest) => {
+			const currentRequestPromise = this.queueFreePromise;
+			this.queueFreePromise = new Promise(async (resolveQueued) => {
+				await currentRequestPromise;
+				try {
+					const response = await process();
+					resolveRequest(response);
+				} catch (err) {
+					rejectRequest(err);
+				}
+				await new Promise<any>((rs) => setTimeout(rs, this.waitBetweenRequests));
+				resolveQueued();
+			});
+		});
 	}
 
 	private getChangedEntities() {
@@ -157,21 +171,22 @@ export default class DynamoEntityManager<Entity>
 	}
 
 	private async deleteItem(item: Entity) {
-		await this.waitTimeReached;
-		const response = new Promise(
-			(rs, rj) => this.dc.delete({
-				Key: this.repo.getEntityKey(item),
-				TableName: this.tableName,
-			},
-			(err) => err ? rj(err) : rs()),
-		);
-		this.resetWaitTime();
-
-		return response;
+		return this.enqueueRequest(async () => this.asyncDelete({
+			Key: this.repo.getEntityKey(item),
+			TableName: this.tableName,
+		}));
 	}
 
-	private resetWaitTime() {
-		this.waitTimeReached = new Promise((rs) => setTimeout(rs, this.writeWaitTime));
+	private asyncPut(request: DocumentClient.PutItemInput) {
+		return new Promise<DocumentClient.PutItemOutput>(
+			(rs, rj) => this.dc.put(request, (err, res) => err ? rj(err) : rs(res)),
+		);
+	}
+
+	private asyncDelete(request: DocumentClient.DeleteItemInput) {
+		return new Promise<DocumentClient.DeleteItemOutput>(
+			(rs, rj) => this.dc.delete(request, (err) => err ? rj(err) : rs()),
+		);
 	}
 }
 
