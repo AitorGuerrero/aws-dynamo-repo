@@ -50,27 +50,28 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return input.KeyConditionExpression !== undefined;
 	}
 
+	public awaitBetweenRequests: number;
+
+	private queueFreePromise: Promise<any>;
 	private unMarshal: (item: DocumentClient.AttributeMap) => Entity;
 	private cache: Map<string, Promise<Entity>>;
 	private hashKey: string;
 	private rangeKey: string;
-	private waitTimeReached: Promise<any>;
 
 	constructor(
 		private dc: DocumentClient,
 		private tableName: string,
 		private keySchema: DocumentClient.KeySchema,
 		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
-		public readWaitTime?: number,
 	) {
 		this.cache = new Map();
 		this.unMarshal = unMarshal === undefined ? (i: any) => i : unMarshal;
 		this.hashKey = keySchema.find((k) => k.KeyType === hash).AttributeName;
 		const rangeSchema = keySchema.find((k) => k.KeyType === range);
+		this.queueFreePromise = Promise.resolve();
 		if (rangeSchema) {
 			this.rangeKey = rangeSchema.AttributeName;
 		}
-		this.waitTimeReached = Promise.resolve();
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -128,7 +129,6 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	public async count(input: ICountInput) {
 		const documentClientInput = Object.assign({}, input, {TableName: this.tableName, Select: "COUNT"});
 		const inputIsQuery = DynamoDBRepository.isQueryInput(input);
-		await this.waitTimeReached;
 		const response = await (inputIsQuery ?
 			new Promise<DocumentClient.QueryOutput>(
 				(rs, rj) => this.dc.query(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
@@ -136,7 +136,6 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			new Promise<DocumentClient.ScanOutput>(
 				(rs, rj) => this.dc.scan(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
 			));
-		this.resetWaitTime();
 
 		return response.Count;
 	}
@@ -196,37 +195,35 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	}
 
 	private async loadEntity(Key: DocumentClient.Key) {
-		const input: DocumentClient.GetItemInput = {
-			Key,
-			TableName: this.tableName,
-		};
-		await this.waitTimeReached;
-		const response = await new Promise<DocumentClient.GetItemOutput>(
-			(rs, rj) => this.dc.get(input, (err, res) => err ? rj(err) : rs(res)),
-		);
-		this.resetWaitTime();
+		return this.enqueueRequest(async () => {
+			const input: DocumentClient.GetItemInput = {
+				Key,
+				TableName: this.tableName,
+			};
+			const response = await this.asyncGet(input);
 
-		return response.Item === undefined ? undefined : this.unMarshal(response.Item);
+			return response.Item === undefined ? undefined : this.unMarshal(response.Item);
+		});
 	}
 
 	private async loadEntities(keys: DocumentClient.Key[]) {
-		const input: DocumentClient.BatchGetItemInput = {
-			RequestItems: {
-				[this.tableName]: {Keys: keys},
-			},
-		};
-		await this.waitTimeReached;
-		const response = await new Promise<DocumentClient.BatchGetItemOutput>(
-			(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
-		);
-		this.resetWaitTime();
-		const result = new Map<DocumentClient.Key, Entity>();
-		for (const item of response.Responses[this.tableName]) {
-			const entity = this.unMarshal(item);
-			result.set(keys.find((k) => this.stringifyKey(k) === this.getEntityId(entity)), entity);
-		}
+		return this.enqueueRequest(async () => {
+			const input: DocumentClient.BatchGetItemInput = {
+				RequestItems: {
+					[this.tableName]: {Keys: keys},
+				},
+			};
+			const response = await new Promise<DocumentClient.BatchGetItemOutput>(
+				(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
+			);
+			const result = new Map<DocumentClient.Key, Entity>();
+			for (const item of response.Responses[this.tableName]) {
+				const entity = this.unMarshal(item);
+				result.set(keys.find((k) => this.stringifyKey(k) === this.getEntityId(entity)), entity);
+			}
 
-		return result;
+			return result;
+		});
 	}
 
 	private buildScanBlockGenerator(input: ISearchInput) {
@@ -236,35 +233,56 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			{TableName: this.tableName},
 		);
 		const inputIsQuery = DynamoDBRepository.isQueryInput(documentClientInput);
-
 		let lastEvaluatedKey: any;
 		let sourceIsEmpty = false;
 
-		return async () => {
+		return async () => this.enqueueRequest(async () => {
 			if (sourceIsEmpty) {
 				return;
 			}
 			const blockInput = Object.assign({ExclusiveStartKey: lastEvaluatedKey}, documentClientInput);
-			await this.waitTimeReached;
-			const response = await (inputIsQuery ?
-				new Promise<DocumentClient.QueryOutput>(
-					(rs, rj) => this.dc.query(blockInput, (err, res) => err ? rj(err) : rs(res)),
-				) :
-				new Promise<DocumentClient.ScanOutput>(
-					(rs, rj) => this.dc.scan(blockInput, (err, res) => err ? rj(err) : rs(res)),
-				)
-			);
-			this.resetWaitTime();
+			const response = await (inputIsQuery ? this.asyncQuery(blockInput) : this.asyncScan(blockInput));
 			lastEvaluatedKey = response.LastEvaluatedKey;
 			if (undefined === lastEvaluatedKey) {
 				sourceIsEmpty = true;
 			}
 
 			return response;
-		};
+		});
 	}
 
-	private resetWaitTime() {
-		this.waitTimeReached = new Promise((rs) => setTimeout(rs, this.readWaitTime));
+	private enqueueRequest<Response>(process: () => Response): Promise<Response> {
+		return new Promise(async (resolveRequest, rejectRequest) => {
+			const currentRequestPromise = this.queueFreePromise;
+			this.queueFreePromise = new Promise(async (resolveQueued) => {
+				await currentRequestPromise;
+				try {
+					const response = await process();
+					resolveRequest(response);
+				} catch (err) {
+					rejectRequest(err);
+				}
+				await new Promise<any>((rs) => setTimeout(rs, this.awaitBetweenRequests));
+				resolveQueued();
+			});
+		});
+	}
+
+	private asyncQuery(input: DocumentClient.QueryInput) {
+		return new Promise<DocumentClient.QueryOutput>(
+			(rs, rj) => this.dc.query(input, (err, res) => err ? rj(err) : rs(res)),
+		);
+	}
+
+	private asyncScan(input: DocumentClient.ScanInput) {
+		return new Promise<DocumentClient.ScanOutput>(
+			(rs, rj) => this.dc.scan(input, (err, res) => err ? rj(err) : rs(res)),
+		);
+	}
+
+	private asyncGet(input: DocumentClient.GetItemInput) {
+		return new Promise<DocumentClient.GetItemOutput>(
+			(rs, rj) => this.dc.get(input, (err, res) => err ? rj(err) : rs(res)),
+		);
 	}
 }
