@@ -63,7 +63,7 @@ describe("Having a entity manager", () => {
 			tableName,
 			marshal,
 		);
-		entityManager.waitTimeBetweenTries = 0;
+		entityManager.waitBetweenTries = 0;
 		entity = await entityManager.get({id: entityId});
 	});
 
