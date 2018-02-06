@@ -14,7 +14,7 @@ export default class DynamoEntityManager<Entity>
 
 	public waitBetweenRequests = 0;
 	public waitBetweenTries = 1000;
-	public  maxTries = 3;
+	public maxTries = 3;
 
 	private queueFreePromise: Promise<any>;
 	private tracked: Map<string, Entity>;
@@ -73,6 +73,7 @@ export default class DynamoEntityManager<Entity>
 
 	public clear() {
 		this.tracked.clear();
+		this.deleted.clear();
 		this.repo.clear();
 	}
 
