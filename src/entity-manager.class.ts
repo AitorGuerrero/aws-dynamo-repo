@@ -100,42 +100,23 @@ export default class DynamoEntityManager<Entity>
 	}
 
 	private async updateItem(entity: Entity) {
-		return this.enqueueRequest(async () => {
-			if (this.deleted.get(this.getEntityId(entity))) {
-				return;
-			}
-			let tries = 1;
-			let saved = false;
-			const request = {TableName: this.tableName, Item: this.marshal(entity)};
-			while (saved === false) {
-				try {
-					await this.asyncPut(request);
-					saved = true;
-				} catch (err) {
-					if (tries++ > this.maxTries) {
-						throw err;
-					}
-					await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
+		if (this.deleted.get(this.getEntityId(entity))) {
+			return;
+		}
+		let tries = 1;
+		let saved = false;
+		const request = {TableName: this.tableName, Item: this.marshal(entity)};
+		while (saved === false) {
+			try {
+				await this.asyncPut(request);
+				saved = true;
+			} catch (err) {
+				if (tries++ > this.maxTries) {
+					throw err;
 				}
+				await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
 			}
-		});
-	}
-
-	private enqueueRequest<Response>(process: () => Response): Promise<Response> {
-		return new Promise(async (resolveRequest, rejectRequest) => {
-			const currentRequestPromise = this.queueFreePromise;
-			this.queueFreePromise = new Promise(async (resolveQueued) => {
-				await currentRequestPromise;
-				try {
-					const response = await process();
-					resolveRequest(response);
-				} catch (err) {
-					rejectRequest(err);
-				}
-				await new Promise<any>((rs) => setTimeout(rs, this.waitBetweenRequests));
-				resolveQueued();
-			});
-		});
+		}
 	}
 
 	private getChangedEntities() {
@@ -172,10 +153,10 @@ export default class DynamoEntityManager<Entity>
 	}
 
 	private async deleteItem(item: Entity) {
-		return this.enqueueRequest(async () => this.asyncDelete({
+		return this.asyncDelete({
 			Key: this.repo.getEntityKey(item),
 			TableName: this.tableName,
-		}));
+		});
 	}
 
 	private asyncPut(request: DocumentClient.PutItemInput) {

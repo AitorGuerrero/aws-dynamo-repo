@@ -50,8 +50,6 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return input.KeyConditionExpression !== undefined;
 	}
 
-	public awaitBetweenRequests = 0;
-
 	private queueFreePromise: Promise<any>;
 	private unMarshal: (item: DocumentClient.AttributeMap) => Entity;
 	private cache: Map<string, Promise<Entity>>;
@@ -195,35 +193,31 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	}
 
 	private async loadEntity(Key: DocumentClient.Key) {
-		return this.enqueueRequest(async () => {
-			const input: DocumentClient.GetItemInput = {
-				Key,
-				TableName: this.tableName,
-			};
-			const response = await this.asyncGet(input);
+		const input: DocumentClient.GetItemInput = {
+			Key,
+			TableName: this.tableName,
+		};
+		const response = await this.asyncGet(input);
 
-			return response.Item === undefined ? undefined : this.unMarshal(response.Item);
-		});
+		return response.Item === undefined ? undefined : this.unMarshal(response.Item);
 	}
 
 	private async loadEntities(keys: DocumentClient.Key[]) {
-		return this.enqueueRequest(async () => {
-			const input: DocumentClient.BatchGetItemInput = {
-				RequestItems: {
-					[this.tableName]: {Keys: keys},
-				},
-			};
-			const response = await new Promise<DocumentClient.BatchGetItemOutput>(
-				(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
-			);
-			const result = new Map<DocumentClient.Key, Entity>();
-			for (const item of response.Responses[this.tableName]) {
-				const entity = this.unMarshal(item);
-				result.set(keys.find((k) => this.stringifyKey(k) === this.getEntityId(entity)), entity);
-			}
+		const input: DocumentClient.BatchGetItemInput = {
+			RequestItems: {
+				[this.tableName]: {Keys: keys},
+			},
+		};
+		const response = await new Promise<DocumentClient.BatchGetItemOutput>(
+			(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
+		);
+		const result = new Map<DocumentClient.Key, Entity>();
+		for (const item of response.Responses[this.tableName]) {
+			const entity = this.unMarshal(item);
+			result.set(keys.find((k) => this.stringifyKey(k) === this.getEntityId(entity)), entity);
+		}
 
-			return result;
-		});
+		return result;
 	}
 
 	private buildScanBlockGenerator(input: ISearchInput) {
@@ -235,12 +229,15 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		const inputIsQuery = DynamoDBRepository.isQueryInput(documentClientInput);
 		let lastEvaluatedKey: any;
 		let sourceIsEmpty = false;
+		if (input.ExclusiveStartKey !== undefined) {
+			lastEvaluatedKey = input.ExclusiveStartKey;
+		}
 
-		return async () => this.enqueueRequest(async () => {
+		return async () => {
 			if (sourceIsEmpty) {
 				return;
 			}
-			const blockInput = Object.assign({ExclusiveStartKey: lastEvaluatedKey}, documentClientInput);
+			const blockInput = Object.assign(documentClientInput, {ExclusiveStartKey: lastEvaluatedKey});
 			const response = await (inputIsQuery ? this.asyncQuery(blockInput) : this.asyncScan(blockInput));
 			lastEvaluatedKey = response.LastEvaluatedKey;
 			if (undefined === lastEvaluatedKey) {
@@ -248,24 +245,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			}
 
 			return response;
-		});
-	}
-
-	private enqueueRequest<Response>(process: () => Response): Promise<Response> {
-		return new Promise(async (resolveRequest, rejectRequest) => {
-			const currentRequestPromise = this.queueFreePromise;
-			this.queueFreePromise = new Promise(async (resolveQueued) => {
-				await currentRequestPromise;
-				try {
-					const response = await process();
-					resolveRequest(response);
-				} catch (err) {
-					rejectRequest(err);
-				}
-				await new Promise<any>((rs) => setTimeout(rs, this.awaitBetweenRequests));
-				resolveQueued();
-			});
-		});
+		};
 	}
 
 	private asyncQuery(input: DocumentClient.QueryInput) {
