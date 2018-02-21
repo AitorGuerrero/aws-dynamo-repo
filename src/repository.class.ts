@@ -176,16 +176,13 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		let sourceIsEmpty = false;
 
 		return async () => {
-			if (batch === undefined || batch.length === 0 && sourceIsEmpty) {
-				return;
-			}
-			if (batch.length === 0) {
+			while (batch.length === 0 && sourceIsEmpty === false) {
 				const dynamoResponse = await getNextBlock();
 				batch = dynamoResponse.Items;
 				sourceIsEmpty = dynamoResponse.LastEvaluatedKey === undefined;
-				if (batch === undefined || batch.length === 0) {
-					return;
-				}
+			}
+			if (batch.length === 0) {
+				return;
 			}
 
 			return this.unMarshal(batch.shift());
