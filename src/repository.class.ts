@@ -88,7 +88,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			const stringifiedKey = this.stringifyKey(key);
 			if (this.cache.has(stringifiedKey)) {
 				result.set(key, await this.cache.get(stringifiedKey));
-			} else if (notCachedKeys.indexOf(key) === -1) {
+			} else if (notCachedKeys.some((k) => sameKey(k, key)) === false) {
 				notCachedKeys.push(key);
 			}
 		}
@@ -264,4 +264,8 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			(rs, rj) => this.dc.get(input, (err, res) => err ? rj(err) : rs(res)),
 		);
 	}
+}
+
+function sameKey(key1: DocumentClient.Key, key2: DocumentClient.Key) {
+	return Object.keys(key1).every((k) => key2[k] === key1[k]);
 }
