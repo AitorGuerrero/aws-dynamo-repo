@@ -53,10 +53,12 @@ export default class DynamoEntityManager<Entity>
 
 	public search(input: ISearchInput) {
 		const getNextEntity = this.repo.search(input);
-
+		const mustTrack = input.ProjectionExpression === undefined;
 		return async () => {
 			const entity = await getNextEntity();
-			this.track(entity);
+			if (mustTrack) {
+				this.track(entity);
+			}
 
 			return entity;
 		};

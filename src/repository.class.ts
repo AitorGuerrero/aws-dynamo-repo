@@ -111,14 +111,16 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	public search(input: ISearchInput) {
 		const getNextEntity = this.searchInDocumentClient(input);
-
+		const mustAddToCache = input.ProjectionExpression === undefined;
 		return async () => {
 			const entity = await getNextEntity();
 			if (entity === undefined) {
 				return;
 			}
 			const id = this.getEntityId(entity);
-			this.addToCache(entity);
+			if (mustAddToCache) {
+				this.addToCache(entity);
+			}
 
 			return this.cache.get(id);
 		};
