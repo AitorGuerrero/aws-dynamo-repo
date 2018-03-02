@@ -88,7 +88,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			const stringifiedKey = this.stringifyKey(key);
 			if (this.cache.has(stringifiedKey)) {
 				result.set(key, await this.cache.get(stringifiedKey));
-			} else {
+			} else if (notCachedKeys.indexOf(key) === -1) {
 				notCachedKeys.push(key);
 			}
 		}
