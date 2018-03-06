@@ -44,6 +44,21 @@ export interface IDynamoDBRepository<Entity> {
 	clear(): void;
 }
 
+export interface IGenerator<Entity> {
+	(): Promise<Entity>;
+	toArray(): Promise<Entity[]>;
+}
+
+async function toArray<Entity>() {
+	const array: Entity[] = [];
+	let entity: Entity;
+	while (entity = await this()) {
+		array.push(entity);
+	}
+
+	return array;
+}
+
 export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
@@ -109,10 +124,10 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return result;
 	}
 
-	public search(input: ISearchInput) {
+	public search(input: ISearchInput): IGenerator<Entity> {
 		const getNextEntity = this.searchInDocumentClient(input);
 		const mustAddToCache = input.ProjectionExpression === undefined;
-		return async () => {
+		const generator = (async () => {
 			const entity = await getNextEntity();
 			if (entity === undefined) {
 				return;
@@ -123,7 +138,10 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			}
 
 			return this.cache.get(id);
-		};
+		}) as IGenerator<Entity>;
+		generator.toArray = toArray;
+
+		return generator;
 	}
 
 	public async count(input: ICountInput) {

@@ -5,6 +5,7 @@
       true,
       "tabs"
     ],
-    "no-unused-expression": false
+    "no-unused-expression": false,
+    "no-conditional-assignment": false
   }
 }
