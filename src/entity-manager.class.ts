@@ -1,8 +1,9 @@
 import {DynamoDB} from "aws-sdk";
 import {setTimeout} from "timers";
-import {IDynamoDBRepository, ISearchInput} from "./repository.class";
-import TrackedEntitiesCollisionError from "./tracked-entities-collision.error";
 import DocumentClient = DynamoDB.DocumentClient;
+import generatorToArray from "./generator-to-array";
+import {IDynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
+import TrackedEntitiesCollisionError from "./tracked-entities-collision.error";
 
 export interface IPersistingRepository<Entity> {
 	persist: (e: Entity) => any;
@@ -54,14 +55,17 @@ export default class DynamoEntityManager<Entity>
 	public search(input: ISearchInput) {
 		const getNextEntity = this.repo.search(input);
 		const mustTrack = input.ProjectionExpression === undefined;
-		return async () => {
+		const generator = (async () => {
 			const entity = await getNextEntity();
 			if (mustTrack) {
 				this.track(entity);
 			}
 
 			return entity;
-		};
+		}) as IGenerator<Entity>;
+		generator.toArray = generatorToArray;
+
+		return generator;
 	}
 
 	public persist(entity: Entity) {

@@ -1,4 +1,5 @@
 import {DynamoDB} from "aws-sdk";
+import generatorToArray from "./generator-to-array";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -47,16 +48,6 @@ export interface IDynamoDBRepository<Entity> {
 export interface IGenerator<Entity> {
 	(): Promise<Entity>;
 	toArray(): Promise<Entity[]>;
-}
-
-async function toArray<Entity>() {
-	const array: Entity[] = [];
-	let entity: Entity;
-	while (entity = await this()) {
-		array.push(entity);
-	}
-
-	return array;
 }
 
 export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
@@ -139,7 +130,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 			return this.cache.get(id);
 		}) as IGenerator<Entity>;
-		generator.toArray = toArray;
+		generator.toArray = generatorToArray;
 
 		return generator;
 	}
