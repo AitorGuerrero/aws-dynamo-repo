@@ -1,9 +1,11 @@
 import {DynamoDB} from "aws-sdk";
+import {Console} from "console";
 import {setTimeout} from "timers";
-import DocumentClient = DynamoDB.DocumentClient;
 import generatorToArray from "./generator-to-array";
 import {IDynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
 import TrackedEntitiesCollisionError from "./tracked-entities-collision.error";
+
+import DocumentClient = DynamoDB.DocumentClient;
 
 export interface IPersistingRepository<Entity> {
 	persist: (e: Entity) => any;
@@ -22,18 +24,21 @@ export default class DynamoEntityManager<Entity>
 	private initialStatus: Map<string, string>;
 	private marshal: (e: Entity) => DocumentClient.AttributeMap;
 	private deleted: Map<string, Entity>;
+	private console: Console;
 
 	constructor(
 		private repo: IDynamoDBRepository<Entity>,
 		private dc: DocumentClient,
 		private tableName: string,
 		marshal?: (entity: Entity) => DocumentClient.AttributeMap,
+		customConsole?: Console,
 	) {
 		this.initialStatus = new Map();
 		this.tracked = new Map();
 		this.deleted = new Map();
-		this.marshal = marshal !== undefined ? marshal : defaultMarshal;
+		this.marshal = marshal != undefined ? marshal : defaultMarshal;
 		this.queueFreePromise = Promise.resolve();
+		this.console = customConsole || console;
 	}
 
 	public async get(key: DocumentClient.Key) {
@@ -53,6 +58,10 @@ export default class DynamoEntityManager<Entity>
 	}
 
 	public search(input: ISearchInput) {
+		if (this.tracked.size > 0 || this.deleted.size > 0) {
+			this.console.warn("Making a dynamo entity manager search with items not flushed. This will " +
+			"result in error in future versions.");
+		}
 		const getNextEntity = this.repo.search(input);
 		const mustTrack = input.ProjectionExpression === undefined;
 		const generator = (async () => {
