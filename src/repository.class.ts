@@ -106,7 +106,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 				if (entity === undefined) {
 					this.cache.set(stringifiedKey, Promise.resolve(undefined));
 				} else {
-					this.addToCache(entity);
+					await this.addToCache(entity);
 				}
 				result.set(key, await this.cache.get(stringifiedKey));
 			}
@@ -125,7 +125,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			}
 			const id = this.getEntityId(entity);
 			if (mustAddToCache) {
-				this.addToCache(entity);
+				await this.addToCache(entity);
 			}
 
 			return this.cache.get(id);
@@ -171,9 +171,9 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		return key;
 	}
 
-	public addToCache(entity: Entity) {
+	public async addToCache(entity: Entity) {
 		const id = this.getEntityId(entity);
-		if (this.cache.has(id)) {
+		if (this.cache.has(id) && await this.cache.get(id) !== undefined) {
 			return;
 		}
 		this.cache.set(id, Promise.resolve(entity));

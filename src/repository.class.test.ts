@@ -50,12 +50,32 @@ describe("Having a repository with cache", () => {
 	});
 
 	describe("when asking for an entity", () => {
+
+		const notExistentEntityId = "notExistentEntity";
+
+		let returnedEntity: IEntity;
+
+		beforeEach(async () => returnedEntity = await repository.get({id: notExistentEntityId}));
+
 		describe("and the entity doesn't exists", () => {
-			it("should return undefined", async () => {
-				const entity = await repository.get({id: "notExistentEntity"});
-				expect(entity).to.be.undefined;
+			it("should return undefined", () => expect(returnedEntity).to.be.undefined);
+			describe("and then adding a entity with that id to cache", () => {
+				beforeEach(() => repository.addToCache({id: notExistentEntityId, flag: 1}));
+				describe("and asking again for the entity", () => {
+					let newReturnedEntity: IEntity;
+					beforeEach(async () => newReturnedEntity = await repository.get({id: notExistentEntityId}));
+					it.only(
+						"should not return undefined",
+						async () => expect(newReturnedEntity).not.to.be.undefined,
+					);
+					it.only(
+						"should return correct entity",
+						async () => expect(newReturnedEntity.id).to.be.eq(notExistentEntityId),
+					);
+				});
 			});
 		});
+
 		it("should return the unmarshaled entity", async () => {
 			const entity = await repository.get({id: entityId});
 			expect(entity.id).to.be.eq(entityId);
