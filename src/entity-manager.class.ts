@@ -1,126 +1,98 @@
 import {DynamoDB} from "aws-sdk";
-import {Console} from "console";
 import {setTimeout} from "timers";
-import generatorToArray from "./generator-to-array";
-import {IDynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
-import TrackedEntitiesCollisionError from "./tracked-entities-collision.error";
+import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export interface IPersistingRepository<Entity> {
-	persist: (e: Entity) => any;
-	flush: () => Promise<void>;
+type TableName = string;
+type Action = "CREATE" | "UPDATE" | "DELETE";
+
+export interface ITableConfigs {
+	[tableName: string]: {
+		keySchema: DocumentClient.KeySchema,
+		marshal: (entity: any) => DocumentClient.AttributeMap;
+	};
 }
 
-export default class DynamoEntityManager<Entity>
-	implements IDynamoDBRepository<Entity>, IPersistingRepository<Entity> {
+type Tracked = Map<TableName, TrackedTable<any>>;
+type TrackedTable<Entity> = Map<Entity, {action: Action, initialStatus?: any}>;
+
+export default class DynamoEntityManager {
 
 	public waitBetweenRequests = 0;
-	public waitBetweenTries = 1000;
+	public waitBetweenTries = 500;
 	public maxTries = 3;
 
 	private queueFreePromise: Promise<any>;
-	private tracked: Map<string, Entity>;
-	private initialStatus: Map<string, string>;
-	private marshal: (e: Entity) => DocumentClient.AttributeMap;
-	private deleted: Map<string, Entity>;
-	private console: Console;
+	private tracked: Tracked;
 
 	constructor(
-		private repo: IDynamoDBRepository<Entity>,
 		private dc: DocumentClient,
-		private tableName: string,
-		marshal?: (entity: Entity) => DocumentClient.AttributeMap,
-		customConsole?: Console,
+		private tableConfigs: ITableConfigs,
 	) {
-		this.initialStatus = new Map();
 		this.tracked = new Map();
-		this.deleted = new Map();
-		this.marshal = marshal != undefined ? marshal : defaultMarshal;
+		for (const tableName in tableConfigs) {
+			this.tracked.set(tableName, new Map());
+		}
 		this.queueFreePromise = Promise.resolve();
-		this.console = customConsole || console;
-	}
-
-	public async get(key: DocumentClient.Key) {
-		const response = await this.repo.get(key);
-		this.track(response);
-
-		return response;
-	}
-
-	public async getList(keys: DocumentClient.Key[]) {
-		const response = await this.repo.getList(keys);
-		for (const entity of response.values()) {
-			this.track(entity);
-		}
-
-		return response;
-	}
-
-	public search(input: ISearchInput) {
-		if (this.tracked.size > 0 || this.deleted.size > 0) {
-			this.console.warn("Making a dynamo entity manager search with items not flushed. This will " +
-			"result in error in future versions.");
-		}
-		const getNextEntity = this.repo.search(input);
-		const mustTrack = input.ProjectionExpression === undefined;
-		const generator = (async () => {
-			const entity = await getNextEntity();
-			if (mustTrack) {
-				this.track(entity);
-			}
-
-			return entity;
-		}) as IGenerator<Entity>;
-		generator.toArray = generatorToArray;
-
-		return generator;
-	}
-
-	public persist(entity: Entity) {
-		this.track(entity, true);
-		this.addToCache(entity);
-	}
-
-	public addToCache(entity: Entity) {
-		this.repo.addToCache(entity);
-	}
-
-	public clear() {
-		this.tracked.clear();
-		this.deleted.clear();
-		this.repo.clear();
 	}
 
 	public async flush() {
-		const changedEntities = this.getChangedEntities();
-		for (const entity of (changedEntities)) {
-			await this.updateItem(entity);
+		for (const tableName of this.tracked.keys()) {
+			for (const entity of this.tracked.get(tableName).keys()) {
+				switch (this.tracked.get(tableName).get(entity).action) {
+					case "UPDATE":
+						await this.updateItem(tableName, entity);
+						break;
+					case "DELETE":
+						await this.deleteItem(tableName, entity);
+						break;
+					case "CREATE":
+						await this.createItem(tableName, entity);
+						break;
+				}
+			}
 		}
-		for (const deleted of this.deleted.values()) {
-			await this.deleteItem(deleted);
-		}
 	}
 
-	public getEntityId(entity: Entity) {
-		return this.repo.getEntityId(entity);
-	}
-
-	public getEntityKey(entity: Entity) {
-		return this.repo.getEntityKey(entity);
-	}
-
-	public delete(entity: Entity) {
-		this.deleted.set(this.getEntityId(entity), entity);
-	}
-
-	private async updateItem(entity: Entity) {
-		if (this.deleted.get(this.getEntityId(entity))) {
+	public track(tableName: string, entity: any) {
+		if (entity === undefined) {
 			return;
 		}
+		if (this.tracked.get(tableName).has(entity)) {
+			return;
+		}
+		this.tracked.get(tableName).set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity)});
+	}
+
+	public add(tableName: string, entity: any) {
+		if (entity === undefined) {
+			return;
+		}
+		if (this.tracked.get(tableName).has(entity)) {
+			return;
+		}
+		this.tracked.get(tableName).set(entity, {action: "CREATE"});
+	}
+
+	public delete(tableName: string, entity: any) {
+		if (entity === undefined) {
+			return;
+		}
+		if (this.tracked.get(tableName).has(entity) && this.tracked.get(tableName).get(entity).action === "CREATE") {
+			this.tracked.get(tableName).delete(entity);
+		} else {
+			this.tracked.get(tableName).set(entity, {action: "DELETE"});
+		}
+	}
+
+	private async createItem(tableName: string, entity: any) {
 		let tries = 1;
 		let saved = false;
-		const request = {TableName: this.tableName, Item: this.marshal(entity)};
+		const request = {
+			Item: this.tableConfigs[tableName].marshal(entity),
+			TableName: tableName,
+		};
 		while (saved === false) {
 			try {
 				await this.asyncPut(request);
@@ -134,43 +106,34 @@ export default class DynamoEntityManager<Entity>
 		}
 	}
 
-	private getChangedEntities() {
-		const changedEntities: Entity[] = [];
-		for (const entity of this.tracked.values()) {
-			const id = this.repo.getEntityId(entity);
-			if (
-				false === this.initialStatus.has(id)
-				|| JSON.stringify(entity) !== this.initialStatus.get(id)
-			) {
-				changedEntities.push(entity);
-			}
-		}
-
-		return changedEntities;
-	}
-
-	private track(entity: Entity, isNew?: boolean) {
-		if (entity === undefined) {
+	private async updateItem(tableName: string, entity: any) {
+		if (!this.entityHasChanged(tableName, entity)) {
 			return;
 		}
-		const id = this.repo.getEntityId(entity);
-		if (this.tracked.has(id)) {
-			if (this.tracked.get(id) !== entity) {
-				throw new TrackedEntitiesCollisionError(this.tracked.get(id), entity);
+		let tries = 1;
+		let saved = false;
+		const request = {TableName: tableName, Item: this.tableConfigs[tableName].marshal(entity)};
+		while (saved === false) {
+			try {
+				await this.asyncPut(request);
+				saved = true;
+			} catch (err) {
+				if (tries++ > this.maxTries) {
+					throw err;
+				}
+				await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
 			}
-
-			return;
-		}
-		this.tracked.set(id, entity);
-		if (isNew !== true) {
-			this.initialStatus.set(id, JSON.stringify(entity));
 		}
 	}
 
-	private async deleteItem(item: Entity) {
+	private entityHasChanged(tableName: string, entity: any) {
+		return JSON.stringify(entity) !== this.tracked.get(tableName).get(entity).initialStatus;
+	}
+
+	private async deleteItem(tableName: string, item: any) {
 		return this.asyncDelete({
-			Key: this.repo.getEntityKey(item),
-			TableName: this.tableName,
+			Key: getEntityKey(this.tableConfigs[tableName].keySchema, item),
+			TableName: tableName,
 		});
 	}
 
@@ -185,8 +148,4 @@ export default class DynamoEntityManager<Entity>
 			(rs, rj) => this.dc.delete(request, (err) => err ? rj(err) : rs()),
 		);
 	}
-}
-
-function defaultMarshal(e: any) {
-	return JSON.parse(JSON.stringify(e));
 }

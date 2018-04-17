@@ -1,7 +1,9 @@
 {
   "extends": "tslint:recommended",
   "rules": {
+    "variable-name": false,
     "no-console": false,
+    "forin": false,
     "triple-equals": false,
     "indent": [
       true,

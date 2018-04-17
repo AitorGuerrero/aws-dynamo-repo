@@ -3,31 +3,36 @@ import {EventEmitter} from "events";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-const hash = "HASH";
-const range = "RANGE";
+export type TableName = string;
 
-export default class FakeDocumentClient<Entity> {
+export default class FakeDocumentClient {
 
-	public maxResponses = 2;
+	public stepMode: boolean;
+	private keySchemas: {[tableName: string]: {hashKey: string, rangeKey: string}};
 	private resumed: Promise<any>;
 	private resumedEventEmitter: EventEmitter;
 	private shouldFail: boolean;
 	private error: Error;
 	private hashKey: string;
 	private rangeKey: string;
+	private collections: {[tableName: string]: {[hashKey: string]: {[rangeKey: string]: DocumentClient.AttributeMap}}};
 
 	constructor(
-		private collection: Map<string, DocumentClient.AttributeMap>,
-		public tableName: string,
-		public keySchema: DocumentClient.KeySchema,
+		keySchemas: {[tableName: string]: DocumentClient.KeySchema},
 	) {
 		this.resumed = Promise.resolve();
+		this.stepMode = false;
 		this.resumedEventEmitter = new EventEmitter();
 		this.shouldFail = false;
-		this.hashKey = keySchema.find((k) => k.KeyType === hash).AttributeName;
-		const rangeSchema = keySchema.find((k) => k.KeyType === range);
-		if (rangeSchema) {
-			this.rangeKey = rangeSchema.AttributeName;
+		this.collections = {};
+		this.keySchemas = {};
+		for (const tableName of Object.keys(keySchemas)) {
+			this.keySchemas[tableName] = {
+				hashKey: keySchemas[tableName].find((ks) => ks.KeyType === "HASH").AttributeName,
+				rangeKey: keySchemas[tableName].find((ks) => ks.KeyType === "RANGE") === undefined ?
+					undefined :
+					keySchemas[tableName].find((ks) => ks.KeyType === "RANGE").AttributeName,
+			};
 		}
 	}
 
@@ -35,76 +40,134 @@ export default class FakeDocumentClient<Entity> {
 		input: DocumentClient.GetItemInput,
 		cb: (err?: Error, result?: DocumentClient.GetItemOutput) => any,
 	) {
-		await this.resumed;
+		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		cb(null, {Item: this.collection.get(this.stringifyKey(input.Key))});
+		const hashKey = input.Key[this.keySchemas[input.TableName].hashKey];
+		const rangeKey = input.Key[this.keySchemas[input.TableName].rangeKey];
+		if (this.collections[input.TableName] === undefined) {
+			cb(null, {});
+		} else if (this.keySchemas[input.TableName].rangeKey === undefined) {
+			cb(null, {Item: this.collections[input.TableName][hashKey]});
+		} else {
+			cb(null, {Item: this.collections[input.TableName][hashKey][rangeKey]});
+		}
 	}
 
-	public getByKey(key: DocumentClient.Key) {
-		return this.collection.get(this.stringifyKey(key));
+	public async set(tableName: TableName, item: DocumentClient.AttributeMap) {
+		await new Promise((rs) => this.put({TableName: tableName, Item: item}, () => rs()));
 	}
 
-	public set(item: DocumentClient.AttributeMap) {
-		this.collection.set(this.stringifyKey(this.constructItemKey(item)), item);
+	public getByKey<IEntity>(tableName: TableName, key: DocumentClient.Key): IEntity {
+		return new Promise((rs) => this.get({TableName: tableName, Key: key}, (err, result) => rs(result.Item))) as any;
 	}
 
 	public async batchGet(
 		input: DocumentClient.BatchGetItemInput,
 		cb: (err?: Error, result?: DocumentClient.BatchGetItemOutput) => any,
 	) {
-		await this.resumed;
+		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		const items: DocumentClient.ItemList = [];
-		for (const request of input.RequestItems[this.tableName].Keys) {
-			const item = this.collection.get(this.stringifyKey(request));
-			if (item !== undefined) {
-				items.push(item);
+		const response: DocumentClient.BatchGetItemOutput = {Responses: {}};
+		for (const tableName in input.RequestItems) {
+			response.Responses[tableName] = [];
+			for (const request of input.RequestItems[tableName].Keys) {
+				const hashKey = request[this.keySchemas[tableName].hashKey];
+				const rangeKey = request[this.keySchemas[tableName].rangeKey];
+				this.ensureHashKey(tableName, hashKey);
+				let item: any;
+				if (this.keySchemas[tableName].rangeKey === undefined) {
+					item = this.collections[tableName][hashKey];
+				} else {
+					item = this.collections[tableName][hashKey][rangeKey];
+				}
+				if (item !== undefined) {
+					response.Responses[tableName].push(item);
+				}
 			}
 		}
-		cb(null, {Responses: {[this.tableName]: items}});
+		cb(null, response);
 	}
 
 	public async scan(
 		input: DocumentClient.ScanInput,
 		cb: (err?: Error, result?: DocumentClient.ScanOutput) => any,
 	) {
-		await this.resumed;
+		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		const allItems = Array.from(this.collection.values());
-		const start = input.ExclusiveStartKey !== undefined ?
-			allItems.indexOf(this.collection.get(this.stringifyKey(input.ExclusiveStartKey)) as any) + 1 :
-			0;
-		const items = allItems.slice(start, start + this.maxResponses);
-		const LastEvaluatedKey = items[items.length - 1] !== allItems[allItems.length - 1]
-			? this.constructItemKey(items[items.length - 1])
-			: undefined;
-		cb(null, {Items: items, LastEvaluatedKey});
+		const response: DocumentClient.ScanOutput = {Items: []};
+		const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
+		const hashKeys = Object.keys(this.collections[input.TableName]);
+		let hashKey = startKey.hash;
+		let rangeKey = startKey.range;
+		while (this.collections[input.TableName][hashKey] !== undefined) {
+			const rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
+			if (this.keySchemas[input.TableName].rangeKey === undefined) {
+				response.Items.push(this.collections[input.TableName][hashKey]);
+			} else {
+				while (this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
+					response.Items.push(this.collections[input.TableName][hashKey][rangeKey]);
+					rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
+				}
+			}
+			hashKey = hashKeys[hashKeys.indexOf(hashKey) + 1];
+		}
+		if (hashKey !== undefined) {
+			response.LastEvaluatedKey = {
+				[this.keySchemas[input.TableName].hashKey]: hashKey,
+				[this.keySchemas[input.TableName].rangeKey]: rangeKey,
+			};
+		}
+
+		cb(null, response);
 	}
 
 	public async query(
 		input: DocumentClient.QueryInput,
 		cb: (err?: Error, result?: DocumentClient.QueryOutput) => any,
 	) {
-		await this.resumed;
+		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		const allItems = Array.from(this.collection.values());
-		const start = input.ExclusiveStartKey !== undefined ?
-			allItems.indexOf(this.collection.get(this.stringifyKey(input.ExclusiveStartKey)) as any) + 1 :
-			0;
-		const items = allItems.slice(start, start + this.maxResponses);
-		const LastEvaluatedKey = items[items.length - 1] !== allItems[allItems.length - 1]
-			? this.constructItemKey(items[items.length - 1])
-			: undefined;
-		cb(null, {Items: items, LastEvaluatedKey});
+		const response: DocumentClient.ScanOutput = {Items: []};
+		const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
+		const hashKeys = Object.keys(this.collections[input.TableName]);
+		let hashKey = startKey.hash;
+		let rangeKey = startKey.range;
+		while (this.collections[input.TableName][hashKey] !== undefined) {
+			const rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
+			if (this.keySchemas[input.TableName].rangeKey === undefined) {
+				response.Items.push(this.collections[input.TableName][hashKey]);
+			} else {
+				while (this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
+					response.Items.push(this.collections[input.TableName][hashKey][rangeKey]);
+					rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
+				}
+			}
+			hashKey = hashKeys[hashKeys.indexOf(hashKey) + 1];
+		}
+		if (hashKey !== undefined) {
+			response.LastEvaluatedKey = {
+				[this.keySchemas[input.TableName].hashKey]: hashKey,
+				[this.keySchemas[input.TableName].rangeKey]: rangeKey,
+			};
+		}
+
+		cb(null, response);
 	}
 
 	public async put(
 		input: DocumentClient.PutItemInput,
 		cb: (err?: Error, result?: DocumentClient.PutItemOutput) => any,
 	) {
-		await this.resumed;
+		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		this.collection.set(this.stringifyKey(this.constructItemKey(input.Item)), input.Item as any);
+		const hashKey = input.Item[this.keySchemas[input.TableName].hashKey];
+		const rangeKey = input.Item[this.keySchemas[input.TableName].rangeKey];
+		this.ensureHashKey(input.TableName, hashKey);
+		if (this.keySchemas[input.TableName].rangeKey === undefined) {
+			this.collections[input.TableName][hashKey] = input.Item;
+		} else {
+			this.collections[input.TableName][hashKey][rangeKey] = input.Item;
+		}
 		cb(null, {});
 	}
 
@@ -112,16 +175,19 @@ export default class FakeDocumentClient<Entity> {
 		input: DocumentClient.DeleteItemInput,
 		cb: (err?: Error, result?: DocumentClient.DeleteItemOutput) => any,
 	) {
-		this.collection.delete(this.stringifyKey(input.Key));
+		const hashKey = input.Key[this.keySchemas[input.TableName].hashKey];
+		const rangeKey = input.Key[this.keySchemas[input.TableName].rangeKey];
+		if (this.keySchemas[input.TableName].rangeKey === undefined) {
+			this.collections[input.TableName][hashKey] = undefined;
+		} else {
+			this.collections[input.TableName][hashKey][rangeKey] = undefined;
+		}
 		cb(null, {});
 	}
 
-	public stop() {
-		this.resumed = new Promise((rs) => this.resumedEventEmitter.once("resumed", () => rs()));
-	}
-
-	public resume() {
+	public flush() {
 		this.resumedEventEmitter.emit("resumed");
+		this.resumed = new Promise((rs) => this.resumedEventEmitter.once("resumed", rs));
 	}
 
 	public failOnCall(error?: Error) {
@@ -129,14 +195,32 @@ export default class FakeDocumentClient<Entity> {
 		this.error = error;
 	}
 
-	private constructItemKey(item: DocumentClient.AttributeMap) {
-		const key: DocumentClient.Key = {};
-		key[this.hashKey] = item[this.hashKey];
-		if (this.rangeKey) {
-			key[this.rangeKey] = item[this.rangeKey];
+	private getStartKey(tableName: string, exclusiveStartKey: DocumentClient.Key) {
+		let range: string;
+		let hash: string;
+
+		if (exclusiveStartKey === undefined) {
+			hash = Object.keys(this.collections[tableName])[0];
+			range = Object.keys(this.collections[tableName][hash])[0];
+			return {hash, range};
 		}
 
-		return key;
+		hash = exclusiveStartKey[this.keySchemas[tableName].hashKey];
+		const rangeKeys = Object.keys(this.collections[tableName][exclusiveStartKey[this.keySchemas[tableName].hashKey]]);
+		range = rangeKeys[rangeKeys.indexOf(exclusiveStartKey[this.keySchemas[tableName].rangeKey]) + 1];
+		if (range === undefined) {
+			const hashKeys = Object.keys(this.collections[tableName]);
+			hash = hashKeys[hashKeys.indexOf(hash) + 1];
+			range = Object.keys(this.collections[tableName][hash])[0];
+		}
+
+		return {hash, range};
+	}
+
+	private async awaitFlush() {
+		if (this.stepMode) {
+			await this.resumed;
+		}
 	}
 
 	private guardShouldFail(cb: (err: Error) => any) {
@@ -148,7 +232,12 @@ export default class FakeDocumentClient<Entity> {
 		throw error;
 	}
 
-	private stringifyKey(key: DocumentClient.Key) {
-		return `[${key[this.hashKey]}][${key[this.rangeKey]}]`;
+	private ensureHashKey(tableName: string, hashKey: string) {
+		if (this.collections[tableName] === undefined) {
+			this.collections[tableName] = {};
+		}
+		if (this.collections[tableName][hashKey] === undefined) {
+			this.collections[tableName][hashKey] = {};
+		}
 	}
 }
