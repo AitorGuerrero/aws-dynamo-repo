@@ -41,6 +41,7 @@ describe("Having a entity manager", () => {
 			{[tableName]: {keySchema, marshal}},
 		);
 		repository = new RepositoryManaged(
+			tableName,
 			new DynamoDBRepository<IEntity>(
 				documentClient as any as DocumentClient,
 				tableName,

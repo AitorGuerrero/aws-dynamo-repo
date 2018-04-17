@@ -36,7 +36,6 @@ export interface ICountInput {
 }
 
 export interface IDynamoDBRepository<Entity> {
-	readonly tableName: string;
 	get(key: DocumentClient.Key): Promise<Entity>;
 	getList(keys: DocumentClient.Key[]): Promise<Map<DocumentClient.Key, Entity>>;
 	search(input: ISearchInput): EntityGenerator<Entity>;
@@ -60,7 +59,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	constructor(
 		private dc: DocumentClient,
-		private _tableName: string,
+		private tableName: string,
 		private _keySchema: DocumentClient.KeySchema,
 		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
 	) {
@@ -70,10 +69,6 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		if (rangeSchema) {
 			this._rangeKey = rangeSchema.AttributeName;
 		}
-	}
-
-	get tableName() {
-		return this._tableName;
 	}
 
 	public async get(Key: DocumentClient.Key) {

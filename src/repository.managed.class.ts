@@ -6,19 +6,16 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 	constructor(
+		private tableName: string,
 		private repository: IDynamoDBRepository<Entity>,
 		private entityManager: DynamoEntityManager,
 	) {
 
 	}
 
-	public get tableName() {
-		return this.repository.tableName;
-	}
-
 	public async get(key: DocumentClient.Key) {
 		const entity = await this.repository.get(key);
-		this.entityManager.track(this.repository.tableName, entity);
+		this.entityManager.track(this.tableName, entity);
 
 		return entity;
 	}
@@ -26,7 +23,7 @@ export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 	public async getList(keys: DocumentClient.Key[]) {
 		const list = await this.repository.getList(keys);
 		for (const entity of list.values()) {
-			this.entityManager.track(this.repository.tableName, entity);
+			this.entityManager.track(this.tableName, entity);
 		}
 
 		return list;
@@ -37,7 +34,7 @@ export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 
 		return async () => {
 			const entity = await generator();
-			this.entityManager.track(this.repository.tableName, entity);
+			this.entityManager.track(this.tableName, entity);
 
 			return entity;
 		};

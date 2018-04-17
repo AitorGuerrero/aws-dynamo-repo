@@ -20,10 +20,6 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 		this.rangeKey = rangeSchema ? rangeSchema.AttributeName : undefined;
 	}
 
-	public get tableName() {
-		return this.repo.tableName;
-	}
-
 	public get(key: DocumentClient.Key): Promise<Entity> {
 		if (!this.cache.has(key[this.hashKey])) {
 			this.cache.set(key[this.hashKey], new Map());
