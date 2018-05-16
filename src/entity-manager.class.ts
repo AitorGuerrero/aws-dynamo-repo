@@ -10,7 +10,6 @@ type Action = "CREATE" | "UPDATE" | "DELETE";
 
 export interface ITableConfig<Entity> {
 	tableName: string;
-	class: {new(...args: any[]): Entity};
 	keySchema: DocumentClient.KeySchema;
 	marshal: (entity: Entity) => DocumentClient.AttributeMap;
 }
@@ -19,14 +18,14 @@ export interface IEntity<E> {
 	constructor: Function;
 }
 
-type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any}>;
+type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, entityName: string}>;
 
 export default class DynamoEntityManager {
 
 	public waitBetweenTries = 500;
 	public maxTries = 3;
 
-	private readonly tableConfigs: Map<Function, ITableConfig<any>>;
+	private readonly tableConfigs: Map<string, ITableConfig<any>>;
 	private tracked: TrackedTable;
 
 	constructor(
@@ -36,47 +35,47 @@ export default class DynamoEntityManager {
 		this.tableConfigs = new Map();
 	}
 
-	public addTableConfig(config: ITableConfig<any>) {
-		this.tableConfigs.set(config.class, config);
+	public addTableConfig(entityName: string, config: ITableConfig<any>) {
+		this.tableConfigs.set(entityName, config);
 	}
 
 	public async flush() {
 		for (const entityConfig of this.tracked.values()) {
 			switch (entityConfig.action) {
 				case "UPDATE":
-					await this.updateItem(entityConfig.entity);
+					await this.updateItem(entityConfig.entityName, entityConfig.entity);
 					break;
 				case "DELETE":
-					await this.deleteItem(entityConfig.entity);
+					await this.deleteItem(entityConfig.entityName, entityConfig.entity);
 					break;
 				case "CREATE":
-					await this.createItem(entityConfig.entity);
+					await this.createItem(entityConfig.entityName, entityConfig.entity);
 					break;
 			}
 		}
 	}
 
-	public track<E>(entity: E & IEntity<E>) {
+	public track<E>(entityName: string, entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity), entity});
+		this.tracked.set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity), entity, entityName});
 	}
 
-	public add<E>(entity: E & IEntity<E>) {
+	public add<E>(entityName: string, entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: "CREATE", entity});
+		this.tracked.set(entity, {action: "CREATE", entity, entityName});
 	}
 
-	public delete<E>(entity: E & IEntity<E>) {
+	public delete<E>(entityName: string, entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
@@ -86,7 +85,7 @@ export default class DynamoEntityManager {
 		) {
 			this.tracked.delete(entity);
 		} else {
-			this.tracked.set(entity, {action: "DELETE", entity});
+			this.tracked.set(entity, {action: "DELETE", entity, entityName});
 		}
 	}
 
@@ -94,12 +93,12 @@ export default class DynamoEntityManager {
 		this.tracked = new Map();
 	}
 
-	private async createItem<E>(entity: E & IEntity<E>) {
+	private async createItem<E>(entityName: string, entity: E & IEntity<E>) {
 		let tries = 1;
 		let saved = false;
 		const request = {
-			Item: this.tableConfigs.get(entity.constructor).marshal(entity),
-			TableName: this.tableConfigs.get(entity.constructor).tableName,
+			Item: this.tableConfigs.get(entityName).marshal(entity),
+			TableName: this.tableConfigs.get(entityName).tableName,
 		};
 		while (saved === false) {
 			try {
@@ -114,15 +113,15 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async updateItem<E>(entity: E & IEntity<E>) {
+	private async updateItem<E>(entityName: string, entity: E & IEntity<E>) {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
 		let tries = 1;
 		let saved = false;
 		const request = {
-			Item: this.tableConfigs.get(entity.constructor).marshal(entity),
-			TableName: this.tableConfigs.get(entity.constructor).tableName,
+			Item: this.tableConfigs.get(entityName).marshal(entity),
+			TableName: this.tableConfigs.get(entityName).tableName,
 		};
 		while (saved === false) {
 			try {
@@ -141,10 +140,10 @@ export default class DynamoEntityManager {
 		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem<E>(item: E & IEntity<E>) {
+	private async deleteItem<E>(entityName: string, item: E & IEntity<E>) {
 		return this.asyncDelete({
-			Key: getEntityKey(this.tableConfigs.get(item.constructor).keySchema, item),
-			TableName: this.tableConfigs.get(item.constructor).tableName,
+			Key: getEntityKey(this.tableConfigs.get(entityName).keySchema, item),
+			TableName: this.tableConfigs.get(entityName).tableName,
 		});
 	}
 

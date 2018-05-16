@@ -25,6 +25,7 @@ describe("Having a entity manager", () => {
 	}
 
 	const tableName = "tableName";
+	const entityName = "entityName";
 	const entityId = "entityId";
 
 	let documentClient: FakeDocumentClient;
@@ -36,13 +37,13 @@ describe("Having a entity manager", () => {
 		await documentClient.set(tableName, {id: "second", flag: 20, a: {b: 3, c: 4}});
 		await documentClient.set(tableName, {id: "third", flag: 30, a: {b: 5, c: 6}});
 		entityManager = new DynamoEntityManager(documentClient as any as DocumentClient);
-		entityManager.addTableConfig({
-			class: Entity,
-			keySchema,
-			marshal,
-			tableName,
-		});
 		repository = new RepositoryManaged(
+			entityName,
+			{
+				keySchema,
+				marshal,
+				tableName,
+			},
 			new DynamoDBRepository<Entity>(
 				documentClient as any as DocumentClient,
 				{
@@ -88,7 +89,7 @@ describe("Having a entity manager", () => {
 
 		describe("when deleting a entity", () => {
 			it("should remove it from collection", async () => {
-				entityManager.delete(entity);
+				entityManager.delete(entityName, entity);
 				await entityManager.flush();
 				expect(await documentClient.getByKey(tableName, {id: entityId})).to.be.undefined;
 			});
@@ -100,7 +101,7 @@ describe("Having a entity manager", () => {
 		let entity: Entity;
 		beforeEach(() => {
 			entity = new Entity(newId);
-			entityManager.add(entity);
+			entityManager.add(entityName, entity);
 		});
 		describe("and flushed", () => {
 			beforeEach(() => entityManager.flush());
@@ -113,7 +114,7 @@ describe("Having a entity manager", () => {
 				expect(item).not.to.be.instanceOf(Entity);
 			});
 			describe("and deleting it", () => {
-				beforeEach(() => entityManager.delete(entity));
+				beforeEach(() => entityManager.delete(entityName, entity));
 				describe("and flushed", () => {
 					beforeEach(() => entityManager.flush());
 					it("Should not be added to the collection", async () => {
