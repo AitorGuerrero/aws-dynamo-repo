@@ -13,22 +13,16 @@ export interface ISearchInput {
 	IndexName?: DocumentClient.IndexName;
 	Select?: DocumentClient.Select;
 	Limit?: DocumentClient.PositiveIntegerObject;
-	ConsistentRead?: DocumentClient.ConsistentRead;
 	ScanIndexForward?: DocumentClient.BooleanObject;
 	ExclusiveStartKey?: DocumentClient.Key;
-	ReturnConsumedCapacity?: DocumentClient.ReturnConsumedCapacity;
 	FilterExpression?: DocumentClient.ConditionExpression;
 	KeyConditionExpression?: DocumentClient.KeyExpression;
 	ExpressionAttributeNames?: DocumentClient.ExpressionAttributeNameMap;
 	ExpressionAttributeValues?: DocumentClient.ExpressionAttributeValueMap;
-	TotalSegments?: DocumentClient.ScanTotalSegments;
-	Segment?: DocumentClient.ScanSegment;
 }
 
 export interface ICountInput {
 	IndexName?: DocumentClient.IndexName;
-	ConsistentRead?: DocumentClient.ConsistentRead;
-	ReturnConsumedCapacity?: DocumentClient.ReturnConsumedCapacity;
 	FilterExpression?: DocumentClient.ConditionExpression;
 	KeyConditionExpression?: DocumentClient.KeyExpression;
 	ExpressionAttributeNames?: DocumentClient.ExpressionAttributeNameMap;
@@ -47,6 +41,16 @@ export interface IGenerator<Entity> {
 	toArray(): Promise<Entity[]>;
 }
 
+export interface IGlobalSecondaryIndex {
+	ProjectionType: "KEYS_ONLY" | "INCLUDE" | "ALL";
+}
+
+export interface ITableConfig {
+	tableName: string;
+	keySchema: DocumentClient.KeySchema;
+	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
+}
+
 export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
@@ -59,13 +63,12 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	constructor(
 		private dc: DocumentClient,
-		private tableName: string,
-		private _keySchema: DocumentClient.KeySchema,
+		private config: ITableConfig,
 		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
 	) {
 		this._unMarshal = unMarshal === undefined ? (i: any) => i : unMarshal;
-		this._hashKey = _keySchema.find((k) => k.KeyType === hash).AttributeName;
-		const rangeSchema = _keySchema.find((k) => k.KeyType === range);
+		this._hashKey = config.keySchema.find((k) => k.KeyType === hash).AttributeName;
+		const rangeSchema = config.keySchema.find((k) => k.KeyType === range);
 		if (rangeSchema) {
 			this._rangeKey = rangeSchema.AttributeName;
 		}
@@ -74,7 +77,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	public async get(Key: DocumentClient.Key) {
 		const input: DocumentClient.GetItemInput = {
 			Key,
-			TableName: this.tableName,
+			TableName: this.config.tableName,
 		};
 		const response = await this.asyncGet(input);
 
@@ -84,16 +87,16 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	public async getList(keys: DocumentClient.Key[]) {
 		const input: DocumentClient.BatchGetItemInput = {
 			RequestItems: {
-				[this.tableName]: {Keys: keys},
+				[this.config.tableName]: {Keys: keys},
 			},
 		};
 		const response = await new Promise<DocumentClient.BatchGetItemOutput>(
 			(rs, rj) => this.dc.batchGet(input, (err, res) => err ? rj(err) : rs(res)),
 		);
 		const result = new Map<DocumentClient.Key, Entity>();
-		for (const item of response.Responses[this.tableName]) {
+		for (const item of response.Responses[this.config.tableName]) {
 			const entity = this._unMarshal(item);
-			result.set(keys.find((k) => sameKey(k, getEntityKey(this._keySchema, entity))), entity);
+			result.set(keys.find((k) => sameKey(k, getEntityKey(this.config.keySchema, entity))), entity);
 		}
 
 		return result;
@@ -114,6 +117,17 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			if (batch.length === 0) {
 				return;
 			}
+			if (
+				this.config.secondaryIndexes
+				&& input.IndexName
+				&& this.config.secondaryIndexes[input.IndexName].ProjectionType !== "ALL"
+			) {
+				const indexed = batch.shift();
+				return this.get({
+					[this._hashKey]: indexed[this._hashKey],
+					[this._rangeKey]: indexed[this._rangeKey],
+				});
+			}
 
 			return this._unMarshal(batch.shift());
 		}) as IGenerator<Entity> ;
@@ -123,7 +137,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	}
 
 	public async count(input: ICountInput) {
-		const documentClientInput = Object.assign({}, input, {TableName: this.tableName, Select: "COUNT"});
+		const documentClientInput = Object.assign({}, input, {TableName: this.config.tableName, Select: "COUNT"});
 		const inputIsQuery = DynamoDBRepository.isQueryInput(input);
 		const response = await (inputIsQuery ?
 			new Promise<DocumentClient.QueryOutput>(
@@ -140,7 +154,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 		const documentClientInput: DocumentClient.ScanInput | DocumentClient.QueryInput = Object.assign(
 			{},
 			input,
-			{TableName: this.tableName},
+			{TableName: this.config.tableName},
 		);
 		const inputIsQuery = DynamoDBRepository.isQueryInput(documentClientInput);
 		let lastEvaluatedKey: any;

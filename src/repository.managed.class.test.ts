@@ -44,8 +44,10 @@ describe("Having a entity manager", () => {
 			tableName,
 			new DynamoDBRepository<IEntity>(
 				documentClient as any as DocumentClient,
-				tableName,
-				keySchema,
+				{
+					keySchema,
+					tableName,
+				},
 				unMarshal,
 			),
 			entityManager,

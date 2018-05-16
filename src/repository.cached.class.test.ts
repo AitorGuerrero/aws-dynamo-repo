@@ -34,8 +34,10 @@ describe("Having a repository with cache", () => {
 		repository = new RepositoryCached(
 			new DynamoDBRepository<IEntity>(
 				documentClient as any as DocumentClient,
-				tableName,
-				keySchema,
+				{
+					keySchema,
+					tableName,
+				},
 				unMarshal,
 			),
 			keySchema,
