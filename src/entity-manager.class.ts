@@ -27,7 +27,6 @@ export default class DynamoEntityManager {
 	public maxTries = 3;
 
 	private readonly tableConfigs: Map<Function, ITableConfig<any>>;
-	private queueFreePromise: Promise<any>;
 	private tracked: TrackedTable;
 
 	constructor(
@@ -35,7 +34,6 @@ export default class DynamoEntityManager {
 	) {
 		this.tracked = new Map();
 		this.tableConfigs = new Map();
-		this.queueFreePromise = Promise.resolve();
 	}
 
 	public addTableConfig(config: ITableConfig<any>) {
@@ -90,6 +88,10 @@ export default class DynamoEntityManager {
 		} else {
 			this.tracked.set(entity, {action: "DELETE", entity});
 		}
+	}
+
+	public clear() {
+		this.tracked = new Map();
 	}
 
 	private async createItem<E>(entity: E & IEntity<E>) {
