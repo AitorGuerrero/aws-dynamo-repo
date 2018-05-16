@@ -43,7 +43,6 @@ describe("Having a entity manager", () => {
 			tableName,
 		});
 		repository = new RepositoryManaged(
-			tableName,
 			new DynamoDBRepository<Entity>(
 				documentClient as any as DocumentClient,
 				{

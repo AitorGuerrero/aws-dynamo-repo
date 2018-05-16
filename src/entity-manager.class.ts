@@ -15,15 +15,18 @@ export interface ITableConfig<Entity> {
 	marshal: (entity: Entity) => DocumentClient.AttributeMap;
 }
 
+interface IEntity<E> {
+	constructor: Function;
+}
+
 type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any}>;
 
 export default class DynamoEntityManager {
 
-	public waitBetweenRequests = 0;
 	public waitBetweenTries = 500;
 	public maxTries = 3;
 
-	private readonly tableConfigs: Map<{new(...args: any[]): any}, ITableConfig<any>>;
+	private readonly tableConfigs: Map<Function, ITableConfig<any>>;
 	private queueFreePromise: Promise<any>;
 	private tracked: TrackedTable;
 
@@ -55,7 +58,7 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	public track<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+	public track<E>(entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
@@ -65,7 +68,7 @@ export default class DynamoEntityManager {
 		this.tracked.set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity), entity});
 	}
 
-	public add<Entity>(entity: Entity & {constructor: Function}) {
+	public add<E>(entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
@@ -75,7 +78,7 @@ export default class DynamoEntityManager {
 		this.tracked.set(entity, {action: "CREATE", entity});
 	}
 
-	public delete<Entity>(entity: Entity & {constructor: Function}) {
+	public delete<E>(entity: E & IEntity<E>) {
 		if (entity === undefined) {
 			return;
 		}
@@ -89,7 +92,7 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async createItem<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+	private async createItem<E>(entity: E & IEntity<E>) {
 		let tries = 1;
 		let saved = false;
 		const request = {
@@ -109,7 +112,7 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async updateItem<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+	private async updateItem<E>(entity: E & IEntity<E>) {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
@@ -132,11 +135,11 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private entityHasChanged<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+	private entityHasChanged<E>(entity: E & IEntity<E>) {
 		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem<Entity>(item: Entity & {constructor: {new(...args: any[]): Entity}}) {
+	private async deleteItem<E>(item: E & IEntity<E>) {
 		return this.asyncDelete({
 			Key: getEntityKey(this.tableConfigs.get(item.constructor).keySchema, item),
 			TableName: this.tableConfigs.get(item.constructor).tableName,
