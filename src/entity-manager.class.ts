@@ -15,7 +15,7 @@ export interface ITableConfig<Entity> {
 	marshal: (entity: Entity) => DocumentClient.AttributeMap;
 }
 
-interface IEntity<E> {
+export interface IEntity<E> {
 	constructor: Function;
 }
 
