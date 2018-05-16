@@ -1,6 +1,6 @@
 /* tslint:disable:ban-types */
-
 import {DynamoDB} from "aws-sdk";
+import {EventEmitter} from "events";
 import {setTimeout} from "timers";
 import getEntityKey from "./get-entity-key";
 
@@ -18,6 +18,10 @@ export interface IEntity<E> {
 	constructor: Function;
 }
 
+export enum event {
+	flushed = "flushed",
+}
+
 type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, entityName: string}>;
 
 export default class DynamoEntityManager {
@@ -30,6 +34,7 @@ export default class DynamoEntityManager {
 
 	constructor(
 		private dc: DocumentClient,
+		public readonly eventEmitter: EventEmitter,
 	) {
 		this.tracked = new Map();
 		this.tableConfigs = new Map();
@@ -53,6 +58,7 @@ export default class DynamoEntityManager {
 					break;
 			}
 		}
+		this.eventEmitter.emit(event.flushed);
 	}
 
 	public track<E>(entityName: string, entity: E & IEntity<E>) {
