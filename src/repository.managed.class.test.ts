@@ -1,5 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
+import {EventEmitter} from "events";
 import DynamoEntityManager from "./entity-manager.class";
 import FakeDocumentClient from "./fake-document-client.class";
 import {DynamoDBRepository} from "./repository.class";
@@ -36,7 +37,10 @@ describe("Having a entity manager", () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		await documentClient.set(tableName, {id: "second", flag: 20, a: {b: 3, c: 4}});
 		await documentClient.set(tableName, {id: "third", flag: 30, a: {b: 5, c: 6}});
-		entityManager = new DynamoEntityManager(documentClient as any as DocumentClient);
+		entityManager = new DynamoEntityManager(
+			documentClient as any as DocumentClient,
+			new EventEmitter(),
+		);
 		repository = new RepositoryManaged(
 			entityName,
 			{
