@@ -1,4 +1,2 @@
 .idea
-src/**/*.ts
-!src/**/*.d.ts
 src/**/*.test.*

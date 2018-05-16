@@ -1,21 +1,21 @@
+/* tslint:disable:ban-types */
+
 import {DynamoDB} from "aws-sdk";
 import {setTimeout} from "timers";
 import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-type TableName = string;
 type Action = "CREATE" | "UPDATE" | "DELETE";
 
-export interface ITableConfigs {
-	[tableName: string]: {
-		keySchema: DocumentClient.KeySchema,
-		marshal: (entity: any) => DocumentClient.AttributeMap;
-	};
+export interface ITableConfig<Entity> {
+	tableName: string;
+	class: {new(...args: any[]): Entity};
+	keySchema: DocumentClient.KeySchema;
+	marshal: (entity: Entity) => DocumentClient.AttributeMap;
 }
 
-type Tracked = Map<TableName, TrackedTable<any>>;
-type TrackedTable<Entity> = Map<Entity, {action: Action, initialStatus?: any}>;
+type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any}>;
 
 export default class DynamoEntityManager {
 
@@ -23,75 +23,78 @@ export default class DynamoEntityManager {
 	public waitBetweenTries = 500;
 	public maxTries = 3;
 
+	private readonly tableConfigs: Map<{new(...args: any[]): any}, ITableConfig<any>>;
 	private queueFreePromise: Promise<any>;
-	private tracked: Tracked;
+	private tracked: TrackedTable;
 
 	constructor(
 		private dc: DocumentClient,
-		private tableConfigs: ITableConfigs,
 	) {
 		this.tracked = new Map();
-		for (const tableName in tableConfigs) {
-			this.tracked.set(tableName, new Map());
-		}
+		this.tableConfigs = new Map();
 		this.queueFreePromise = Promise.resolve();
 	}
 
+	public addTableConfig(config: ITableConfig<any>) {
+		this.tableConfigs.set(config.class, config);
+	}
+
 	public async flush() {
-		for (const tableName of this.tracked.keys()) {
-			for (const entity of this.tracked.get(tableName).keys()) {
-				switch (this.tracked.get(tableName).get(entity).action) {
-					case "UPDATE":
-						await this.updateItem(tableName, entity);
-						break;
-					case "DELETE":
-						await this.deleteItem(tableName, entity);
-						break;
-					case "CREATE":
-						await this.createItem(tableName, entity);
-						break;
-				}
+		for (const entityConfig of this.tracked.values()) {
+			switch (entityConfig.action) {
+				case "UPDATE":
+					await this.updateItem(entityConfig.entity);
+					break;
+				case "DELETE":
+					await this.deleteItem(entityConfig.entity);
+					break;
+				case "CREATE":
+					await this.createItem(entityConfig.entity);
+					break;
 			}
 		}
 	}
 
-	public track(tableName: string, entity: any) {
+	public track<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
 		if (entity === undefined) {
 			return;
 		}
-		if (this.tracked.get(tableName).has(entity)) {
+		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.get(tableName).set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity)});
+		this.tracked.set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity), entity});
 	}
 
-	public add(tableName: string, entity: any) {
+	public add<Entity>(entity: Entity & {constructor: Function}) {
 		if (entity === undefined) {
 			return;
 		}
-		if (this.tracked.get(tableName).has(entity)) {
+		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.get(tableName).set(entity, {action: "CREATE"});
+		this.tracked.set(entity, {action: "CREATE", entity});
 	}
 
-	public delete(tableName: string, entity: any) {
+	public delete<Entity>(entity: Entity & {constructor: Function}) {
 		if (entity === undefined) {
 			return;
 		}
-		if (this.tracked.get(tableName).has(entity) && this.tracked.get(tableName).get(entity).action === "CREATE") {
-			this.tracked.get(tableName).delete(entity);
+		if (
+			this.tracked.has(entity)
+			&& this.tracked.get(entity).action === "CREATE"
+		) {
+			this.tracked.delete(entity);
 		} else {
-			this.tracked.get(tableName).set(entity, {action: "DELETE"});
+			this.tracked.set(entity, {action: "DELETE", entity});
 		}
 	}
 
-	private async createItem(tableName: string, entity: any) {
+	private async createItem<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
 		let tries = 1;
 		let saved = false;
 		const request = {
-			Item: this.tableConfigs[tableName].marshal(entity),
-			TableName: tableName,
+			Item: this.tableConfigs.get(entity.constructor).marshal(entity),
+			TableName: this.tableConfigs.get(entity.constructor).tableName,
 		};
 		while (saved === false) {
 			try {
@@ -106,13 +109,16 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async updateItem(tableName: string, entity: any) {
-		if (!this.entityHasChanged(tableName, entity)) {
+	private async updateItem<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+		if (!this.entityHasChanged(entity)) {
 			return;
 		}
 		let tries = 1;
 		let saved = false;
-		const request = {TableName: tableName, Item: this.tableConfigs[tableName].marshal(entity)};
+		const request = {
+			Item: this.tableConfigs.get(entity.constructor).marshal(entity),
+			TableName: this.tableConfigs.get(entity.constructor).tableName,
+		};
 		while (saved === false) {
 			try {
 				await this.asyncPut(request);
@@ -126,14 +132,14 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private entityHasChanged(tableName: string, entity: any) {
-		return JSON.stringify(entity) !== this.tracked.get(tableName).get(entity).initialStatus;
+	private entityHasChanged<Entity>(entity: Entity & {constructor: {new(...args: any[]): Entity}}) {
+		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem(tableName: string, item: any) {
+	private async deleteItem<Entity>(item: Entity & {constructor: {new(...args: any[]): Entity}}) {
 		return this.asyncDelete({
-			Key: getEntityKey(this.tableConfigs[tableName].keySchema, item),
-			TableName: tableName,
+			Key: getEntityKey(this.tableConfigs.get(item.constructor).keySchema, item),
+			TableName: this.tableConfigs.get(item.constructor).tableName,
 		});
 	}
 

@@ -11,18 +11,17 @@ describe("Having a entity manager", () => {
 
 	const keySchema = [{AttributeName: "id", KeyType: "HASH"}];
 
-	interface IEntity {
-		id: string;
-		updated: boolean;
-		marshaled: boolean;
+	class Entity {
+		public updated: boolean;
+		constructor(public id: string) {}
 	}
 
-	function unMarshal(m: IEntity): IEntity {
-		return Object.assign({}, m, {marshaled: false});
+	function unMarshal(m: {id: string, updated: boolean}): Entity {
+		return new Entity(m.id);
 	}
 
-	function marshal(e: IEntity): IEntity {
-		return Object.assign({}, e, {marshaled: true});
+	function marshal(e: Entity) {
+		return {id: e.id, updated: e.updated};
 	}
 
 	const tableName = "tableName";
@@ -30,19 +29,22 @@ describe("Having a entity manager", () => {
 
 	let documentClient: FakeDocumentClient;
 	let entityManager: DynamoEntityManager;
-	let repository: RepositoryManaged<any>;
+	let repository: RepositoryManaged<Entity>;
 
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		await documentClient.set(tableName, {id: "second", flag: 20, a: {b: 3, c: 4}});
 		await documentClient.set(tableName, {id: "third", flag: 30, a: {b: 5, c: 6}});
-		entityManager = new DynamoEntityManager(
-			documentClient as any as DocumentClient,
-			{[tableName]: {keySchema, marshal}},
-		);
+		entityManager = new DynamoEntityManager(documentClient as any as DocumentClient);
+		entityManager.addTableConfig({
+			class: Entity,
+			keySchema,
+			marshal,
+			tableName,
+		});
 		repository = new RepositoryManaged(
 			tableName,
-			new DynamoDBRepository<IEntity>(
+			new DynamoDBRepository<Entity>(
 				documentClient as any as DocumentClient,
 				{
 					keySchema,
@@ -56,11 +58,11 @@ describe("Having a entity manager", () => {
 
 	describe("and having a entity in document client", () => {
 
-		let entity: IEntity;
-		let marshaledEntity: IEntity;
+		let entity: Entity;
+		let marshaledEntity: Entity;
 
 		beforeEach(async () => {
-			marshaledEntity = {id: entityId, marshaled: true, updated: false};
+			marshaledEntity = {id: entityId, updated: false};
 			await documentClient.set(tableName, marshaledEntity);
 			entity = await repository.get({id: entityId});
 		});
@@ -72,7 +74,7 @@ describe("Having a entity manager", () => {
 			describe("and flushed", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {
-					const item = await documentClient.getByKey<IEntity>(tableName, {id: entityId});
+					const item = await documentClient.getByKey<Entity>(tableName, {id: entityId});
 					expect(item.updated).to.be.true;
 				});
 			});
@@ -87,7 +89,7 @@ describe("Having a entity manager", () => {
 
 		describe("when deleting a entity", () => {
 			it("should remove it from collection", async () => {
-				entityManager.delete(tableName, {id: entityId});
+				entityManager.delete(entity);
 				await entityManager.flush();
 				expect(await documentClient.getByKey(tableName, {id: entityId})).to.be.undefined;
 			});
@@ -96,19 +98,23 @@ describe("Having a entity manager", () => {
 
 	describe("when persisting a new entity", () => {
 		const newId = "newId";
-		beforeEach(() => entityManager.add(tableName, {id: newId}));
+		let entity: Entity;
+		beforeEach(() => {
+			entity = new Entity(newId);
+			entityManager.add(entity);
+		});
 		describe("and flushed", () => {
 			beforeEach(() => entityManager.flush());
 			it("should save the item in the collection", async () => {
-				const item = await documentClient.getByKey<IEntity>(tableName, {id: newId});
+				const item = await documentClient.getByKey<Entity>(tableName, {id: newId});
 				expect(item).not.to.be.undefined;
 			});
 			it("should marshal the item", async () => {
-				const item = await documentClient.getByKey<IEntity>(tableName, {id: newId});
-				expect(item.marshaled).to.be.true;
+				const item = await documentClient.getByKey<Entity>(tableName, {id: newId});
+				expect(item).not.to.be.instanceOf(Entity);
 			});
 			describe("and deleting it", () => {
-				beforeEach(() => entityManager.delete(tableName, {id: entityId}));
+				beforeEach(() => entityManager.delete(entity));
 				describe("and flushed", () => {
 					beforeEach(() => entityManager.flush());
 					it("Should not be added to the collection", async () => {

@@ -130,7 +130,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			}
 
 			return this._unMarshal(batch.shift());
-		}) as IGenerator<Entity> ;
+		}) as IGenerator<Entity>;
 		generator.toArray = generatorToArray;
 
 		return generator;
