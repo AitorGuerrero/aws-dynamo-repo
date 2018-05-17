@@ -1,7 +1,6 @@
 /* tslint:disable:ban-types */
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
-import {setTimeout} from "timers";
 import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
@@ -18,16 +17,17 @@ export interface IEntity<E> {
 	constructor: Function;
 }
 
-export enum event {
+export enum eventType {
 	flushed = "flushed",
+	errorCreating = "error.creating",
+	errorUpdating = "error.updating",
+	errorDeleting = "error.deleting",
+	errorFlushing = "error.flushing",
 }
 
 type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, entityName: string}>;
 
 export default class DynamoEntityManager {
-
-	public waitBetweenTries = 500;
-	public maxTries = 3;
 
 	private readonly tableConfigs: Map<string, ITableConfig<any>>;
 	private tracked: TrackedTable;
@@ -45,20 +45,28 @@ export default class DynamoEntityManager {
 	}
 
 	public async flush() {
+		const processed: Array<Promise<any>> = [];
 		for (const entityConfig of this.tracked.values()) {
 			switch (entityConfig.action) {
 				case "UPDATE":
-					await this.updateItem(entityConfig.entityName, entityConfig.entity);
+					processed.push(this.updateItem(entityConfig.entityName, entityConfig.entity));
 					break;
 				case "DELETE":
-					await this.deleteItem(entityConfig.entityName, entityConfig.entity);
+					processed.push(this.deleteItem(entityConfig.entityName, entityConfig.entity));
 					break;
 				case "CREATE":
-					await this.createItem(entityConfig.entityName, entityConfig.entity);
+					processed.push(this.createItem(entityConfig.entityName, entityConfig.entity));
 					break;
 			}
 		}
-		this.eventEmitter.emit(event.flushed);
+		try {
+			await Promise.all(processed);
+		} catch (err) {
+			this.eventEmitter.emit(eventType.errorFlushing);
+
+			throw err;
+		}
+		this.eventEmitter.emit(eventType.flushed);
 	}
 
 	public track<E>(entityName: string, entity: E & IEntity<E>) {
@@ -100,22 +108,16 @@ export default class DynamoEntityManager {
 	}
 
 	private async createItem<E>(entityName: string, entity: E & IEntity<E>) {
-		let tries = 1;
-		let saved = false;
 		const request = {
 			Item: this.tableConfigs.get(entityName).marshal(entity),
 			TableName: this.tableConfigs.get(entityName).tableName,
 		};
-		while (saved === false) {
-			try {
-				await this.asyncPut(request);
-				saved = true;
-			} catch (err) {
-				if (tries++ > this.maxTries) {
-					throw err;
-				}
-				await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
-			}
+		try {
+			await this.asyncPut(request);
+		} catch (err) {
+			this.eventEmitter.emit(eventType.errorCreating, err, entity);
+
+			throw err;
 		}
 	}
 
@@ -123,22 +125,16 @@ export default class DynamoEntityManager {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
-		let tries = 1;
-		let saved = false;
 		const request = {
 			Item: this.tableConfigs.get(entityName).marshal(entity),
 			TableName: this.tableConfigs.get(entityName).tableName,
 		};
-		while (saved === false) {
-			try {
-				await this.asyncPut(request);
-				saved = true;
-			} catch (err) {
-				if (tries++ > this.maxTries) {
-					throw err;
-				}
-				await new Promise((rs) => setTimeout(rs, this.waitBetweenTries));
-			}
+		try {
+			await this.asyncPut(request);
+		} catch (err) {
+			this.eventEmitter.emit(eventType.errorUpdating, err, entity);
+
+			throw err;
 		}
 	}
 
@@ -147,10 +143,16 @@ export default class DynamoEntityManager {
 	}
 
 	private async deleteItem<E>(entityName: string, item: E & IEntity<E>) {
-		return this.asyncDelete({
-			Key: getEntityKey(this.tableConfigs.get(entityName).keySchema, item),
-			TableName: this.tableConfigs.get(entityName).tableName,
-		});
+		try {
+			return this.asyncDelete({
+				Key: getEntityKey(this.tableConfigs.get(entityName).keySchema, item),
+				TableName: this.tableConfigs.get(entityName).tableName,
+			});
+		} catch (err) {
+			this.eventEmitter.emit(eventType.errorDeleting, err, item);
+
+			throw err;
+		}
 	}
 
 	private asyncPut(request: DocumentClient.PutItemInput) {
