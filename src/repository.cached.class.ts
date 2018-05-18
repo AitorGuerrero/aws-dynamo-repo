@@ -2,7 +2,8 @@ import {DynamoDB} from "aws-sdk";
 import DocumentClient = DynamoDB.DocumentClient;
 import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
-import {IDynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
+import {IGenerator, ISearchInput} from "./repository.class";
+import IDynamoDBRepository from "./repository.interface";
 
 export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 
@@ -80,6 +81,11 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 
 	public addToCache(e: Entity) {
 		this.addToCacheByKey(this.getEntityKey(e), e);
+	}
+
+	public async persist(e: Entity) {
+		this.addToCache(e);
+		await this.repo.persist(e);
 	}
 
 	public clear() {

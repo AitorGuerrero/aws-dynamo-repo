@@ -7,7 +7,7 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 type Action = "CREATE" | "UPDATE" | "DELETE";
 
-export interface ITableConfig<Entity> {
+export interface IEntityManagerTableConfig<Entity> {
 	tableName: string;
 	keySchema: DocumentClient.KeySchema;
 	marshal: (entity: Entity) => DocumentClient.AttributeMap;
@@ -29,7 +29,7 @@ type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, 
 
 export default class DynamoEntityManager {
 
-	private readonly tableConfigs: Map<string, ITableConfig<any>>;
+	private readonly tableConfigs: Map<string, IEntityManagerTableConfig<any>>;
 	private tracked: TrackedTable;
 
 	constructor(
@@ -40,7 +40,7 @@ export default class DynamoEntityManager {
 		this.tableConfigs = new Map();
 	}
 
-	public addTableConfig(entityName: string, config: ITableConfig<any>) {
+	public addTableConfig(entityName: string, config: IEntityManagerTableConfig<any>) {
 		this.tableConfigs.set(entityName, config);
 	}
 

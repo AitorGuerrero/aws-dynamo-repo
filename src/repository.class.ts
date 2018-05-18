@@ -3,6 +3,7 @@ import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
+import IDynamoDBRepository from './repository.interface';
 
 export type EntityGenerator<Entity> = () => Promise<Entity>;
 
@@ -29,13 +30,6 @@ export interface ICountInput {
 	ExpressionAttributeValues?: DocumentClient.ExpressionAttributeValueMap;
 }
 
-export interface IDynamoDBRepository<Entity> {
-	get(key: DocumentClient.Key): Promise<Entity>;
-	getList(keys: DocumentClient.Key[]): Promise<Map<DocumentClient.Key, Entity>>;
-	search(input: ISearchInput): EntityGenerator<Entity>;
-	count(input: ISearchInput): Promise<number>;
-}
-
 export interface IGenerator<Entity> {
 	(): Promise<Entity>;
 	toArray(): Promise<Entity[]>;
@@ -45,7 +39,7 @@ export interface IGlobalSecondaryIndex {
 	ProjectionType: "KEYS_ONLY" | "INCLUDE" | "ALL";
 }
 
-export interface ITableConfig {
+export interface IRepositoryTableConfig {
 	tableName: string;
 	keySchema: DocumentClient.KeySchema;
 	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
@@ -63,7 +57,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 	constructor(
 		private dc: DocumentClient,
-		private config: ITableConfig,
+		private config: IRepositoryTableConfig,
 		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
 	) {
 		this._unMarshal = unMarshal === undefined ? (i: any) => i : unMarshal;
@@ -148,6 +142,13 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			));
 
 		return response.Count;
+	}
+
+	/**
+	 * As read only repository, does nothing
+	 */
+	public async persist() {
+		return;
 	}
 
 	private buildScanBlockGenerator(input: ISearchInput) {

@@ -1,13 +1,14 @@
 import {DynamoDB} from "aws-sdk";
-import DynamoEntityManager, {ITableConfig} from "./entity-manager.class";
+import DynamoEntityManager, {IEntityManagerTableConfig} from "./entity-manager.class";
 import generatorToArray from "./generator-to-array";
-import {IDynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
+import {IGenerator, ISearchInput} from "./repository.class";
+import IDynamoDBRepository from "./repository.interface";
 
 export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 
 	constructor(
 		private entityName: string,
-		private tableConfig: ITableConfig<Entity>,
+		private tableConfig: IEntityManagerTableConfig<Entity>,
 		private repository: IDynamoDBRepository<Entity>,
 		private entityManager: DynamoEntityManager,
 	) {
@@ -45,5 +46,10 @@ export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 
 	public async count(input: ISearchInput) {
 		return this.repository.count(input);
+	}
+
+	public async persist(e: Entity) {
+		this.entityManager.add(this.entityName, e);
+		await this.repository.persist(e);
 	}
 }
