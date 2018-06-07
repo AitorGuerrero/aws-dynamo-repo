@@ -1,9 +1,9 @@
 import {DynamoDB} from "aws-sdk";
 import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
+import IDynamoDBRepository from "./repository.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
-import IDynamoDBRepository from './repository.interface';
 
 export type EntityGenerator<Entity> = () => Promise<Entity>;
 
@@ -81,7 +81,7 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	public async getList(keys: DocumentClient.Key[]) {
 		const input: DocumentClient.BatchGetItemInput = {
 			RequestItems: {
-				[this.config.tableName]: {Keys: keys},
+				[this.config.tableName]: {Keys: uniqueKeys(keys)},
 			},
 		};
 		const response = await new Promise<DocumentClient.BatchGetItemOutput>(
@@ -200,4 +200,13 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 
 function sameKey(key1: DocumentClient.Key, key2: DocumentClient.Key) {
 	return Object.keys(key1).every((k) => key2[k] === key1[k]);
+}
+
+function uniqueKeys(arrArg: DocumentClient.Key[]) {
+	return arrArg.reduce(
+		(output, key) => output.some(
+			(k2: DocumentClient.Key) => sameKey(key, k2),
+		) ? output : output.concat([key]),
+		[] as DocumentClient.Key[],
+	);
 }
