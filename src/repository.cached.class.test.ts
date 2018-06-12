@@ -29,12 +29,17 @@ describe("Having a repository with cache", () => {
 		return {id: m.id, unMarshaledAttr: m.marshaledAttr};
 	}
 
+	function marshal(e: IEntity) {
+		return e;
+	}
+
 	beforeEach(() => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		repository = new RepositoryCached(
 			documentClient as any as DocumentClient,
 			{
 				keySchema,
+				marshal,
 				tableName,
 				unMarshal,
 			},

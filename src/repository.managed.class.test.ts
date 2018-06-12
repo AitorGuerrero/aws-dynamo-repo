@@ -52,6 +52,7 @@ describe("Having a entity manager", () => {
 				documentClient as any as DocumentClient,
 				{
 					keySchema,
+					marshal,
 					tableName,
 					unMarshal,
 				},
