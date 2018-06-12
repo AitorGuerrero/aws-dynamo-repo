@@ -143,9 +143,10 @@ export default class DynamoEntityManager {
 	}
 
 	private async deleteItem<E>(entityName: string, item: E & IEntity<E>) {
+		const tableConfig = this.tableConfigs.get(entityName);
 		try {
 			return this.asyncDelete({
-				Key: getEntityKey(this.tableConfigs.get(entityName).keySchema, item),
+				Key: getEntityKey(tableConfig.keySchema, tableConfig.marshal(item)),
 				TableName: this.tableConfigs.get(entityName).tableName,
 			});
 		} catch (err) {

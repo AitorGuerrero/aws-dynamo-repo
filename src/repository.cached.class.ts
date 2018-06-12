@@ -72,7 +72,7 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 	}
 
 	public getEntityKey(e: Entity) {
-		return getEntityKey(this.config.keySchema, e);
+		return getEntityKey(this.config.keySchema, this.config.marshal(e));
 	}
 
 	public addToCache(e: Entity) {

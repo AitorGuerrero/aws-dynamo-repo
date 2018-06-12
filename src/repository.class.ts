@@ -40,6 +40,7 @@ export interface IRepositoryTableConfig<Entity> {
 	tableName: string;
 	keySchema: DocumentClient.KeySchema;
 	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
+	marshal: (e: Entity) => DocumentClient.AttributeMap;
 	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
 }
 
@@ -87,7 +88,10 @@ export class DynamoDBRepository<Entity> {
 		const result = new Map<DocumentClient.Key, Entity>();
 		for (const item of response.Responses[this.config.tableName]) {
 			const entity = this._unMarshal(item);
-			result.set(keys.find((k) => sameKey(k, getEntityKey(this.config.keySchema, entity))), entity);
+			result.set(keys.find((k) => sameKey(
+				k,
+				getEntityKey(this.config.keySchema, this.config.marshal(entity)),
+			)), entity);
 		}
 
 		return result;
