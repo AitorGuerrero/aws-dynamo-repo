@@ -53,8 +53,8 @@ describe("Having a entity manager", () => {
 				{
 					keySchema,
 					tableName,
+					unMarshal,
 				},
-				unMarshal,
 			),
 			entityManager,
 		);

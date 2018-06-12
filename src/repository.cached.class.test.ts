@@ -32,15 +32,12 @@ describe("Having a repository with cache", () => {
 	beforeEach(() => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		repository = new RepositoryCached(
-			new DynamoDBRepository<IEntity>(
-				documentClient as any as DocumentClient,
-				{
-					keySchema,
-					tableName,
-				},
+			documentClient as any as DocumentClient,
+			{
+				keySchema,
+				tableName,
 				unMarshal,
-			),
-			keySchema,
+			},
 		);
 	});
 

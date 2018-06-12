@@ -2,22 +2,22 @@ import {DynamoDB} from "aws-sdk";
 import DocumentClient = DynamoDB.DocumentClient;
 import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
-import {IGenerator, ISearchInput} from "./repository.class";
-import IDynamoDBRepository from "./repository.interface";
+import {DynamoDBRepository, IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.class";
 
-export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
+export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 
 	private readonly cache: Map<any, Map<any, Promise<Entity>>>;
 	private readonly hashKey: string;
 	private readonly rangeKey: string;
 
 	constructor(
-		private repo: IDynamoDBRepository<Entity>,
-		private keySchema: DocumentClient.KeySchema,
+		dc: DocumentClient,
+		config: IRepositoryTableConfig<Entity>,
 	) {
+		super(dc, config);
 		this.cache = new Map();
-		this.hashKey = keySchema.find((k) => k.KeyType === "HASH").AttributeName;
-		const rangeSchema = keySchema.find((k) => k.KeyType === "RANGE");
+		this.hashKey = this.config.keySchema.find((k) => k.KeyType === "HASH").AttributeName;
+		const rangeSchema = this.config.keySchema.find((k) => k.KeyType === "RANGE");
 		this.rangeKey = rangeSchema ? rangeSchema.AttributeName : undefined;
 	}
 
@@ -26,7 +26,7 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 			this.cache.set(key[this.hashKey], new Map());
 		}
 		if (!this.cache.get(key[this.hashKey]).has(key[this.rangeKey])) {
-			this.cache.get(key[this.hashKey]).set(key[this.rangeKey], this.repo.get(key));
+			this.cache.get(key[this.hashKey]).set(key[this.rangeKey], super.get(key));
 		}
 		return this.cache.get(key[this.hashKey]).get(key[this.rangeKey]);
 	}
@@ -40,7 +40,7 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 			}
 		}
 		if (notCachedKeys.length > 0) {
-			const response = await this.repo.getList(notCachedKeys);
+			const response = await super.getList(notCachedKeys);
 			for (const key of notCachedKeys) {
 				const entity = response.get(key);
 				this.addToCacheByKey(key, entity);
@@ -55,7 +55,7 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 	}
 
 	public search(input: ISearchInput) {
-		const getNextEntity = this.repo.search(input);
+		const getNextEntity = super.search(input);
 		const generator = (async () => {
 			const entity = await getNextEntity();
 			if (entity === undefined) {
@@ -71,21 +71,12 @@ export class RepositoryCached<Entity> implements IDynamoDBRepository<Entity> {
 		return generator;
 	}
 
-	public count(input: ISearchInput) {
-		return this.repo.count(input);
-	}
-
 	public getEntityKey(e: Entity) {
-		return getEntityKey(this.keySchema, e);
+		return getEntityKey(this.config.keySchema, e);
 	}
 
 	public addToCache(e: Entity) {
 		this.addToCacheByKey(this.getEntityKey(e), e);
-	}
-
-	public async persist(e: Entity) {
-		this.addToCache(e);
-		await this.repo.persist(e);
 	}
 
 	public clear() {

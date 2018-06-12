@@ -1,11 +1,8 @@
 import {DynamoDB} from "aws-sdk";
 import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
-import IDynamoDBRepository from "./repository.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
-
-export type EntityGenerator<Entity> = () => Promise<Entity>;
 
 const hash = "HASH";
 const range = "RANGE";
@@ -39,13 +36,14 @@ export interface IGlobalSecondaryIndex {
 	ProjectionType: "KEYS_ONLY" | "INCLUDE" | "ALL";
 }
 
-export interface IRepositoryTableConfig {
+export interface IRepositoryTableConfig<Entity> {
 	tableName: string;
 	keySchema: DocumentClient.KeySchema;
 	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
+	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
 }
 
-export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
+export class DynamoDBRepository<Entity> {
 
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
 		return input.KeyConditionExpression !== undefined;
@@ -56,11 +54,10 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 	private readonly _rangeKey: string;
 
 	constructor(
-		private dc: DocumentClient,
-		private config: IRepositoryTableConfig,
-		unMarshal?: (item: DocumentClient.AttributeMap) => Entity,
+		protected dc: DocumentClient,
+		protected config: IRepositoryTableConfig<Entity>,
 	) {
-		this._unMarshal = unMarshal === undefined ? (i: any) => i : unMarshal;
+		this._unMarshal = this.config.unMarshal === undefined ? (i: any) => i : this.config.unMarshal;
 		this._hashKey = config.keySchema.find((k) => k.KeyType === hash).AttributeName;
 		const rangeSchema = config.keySchema.find((k) => k.KeyType === range);
 		if (rangeSchema) {
@@ -142,13 +139,6 @@ export class DynamoDBRepository<Entity> implements IDynamoDBRepository<Entity> {
 			));
 
 		return response.Count;
-	}
-
-	/**
-	 * As read only repository, does nothing
-	 */
-	public async persist() {
-		return;
 	}
 
 	private buildScanBlockGenerator(input: ISearchInput) {

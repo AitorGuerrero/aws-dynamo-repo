@@ -1,15 +1,14 @@
 import {DynamoDB} from "aws-sdk";
 import DynamoEntityManager, {IEntityManagerTableConfig} from "./entity-manager.class";
 import generatorToArray from "./generator-to-array";
-import {IGenerator, ISearchInput} from "./repository.class";
-import IDynamoDBRepository from "./repository.interface";
+import {DynamoDBRepository, IGenerator, ISearchInput} from "./repository.class";
 
-export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
+export class RepositoryManaged<Entity> {
 
 	constructor(
 		private entityName: string,
 		private tableConfig: IEntityManagerTableConfig<Entity>,
-		private repository: IDynamoDBRepository<Entity>,
+		private repository: DynamoDBRepository<Entity>,
 		private entityManager: DynamoEntityManager,
 	) {
 		this.entityManager.addTableConfig(entityName, tableConfig);
@@ -50,6 +49,5 @@ export class RepositoryManaged<Entity> implements IDynamoDBRepository<Entity> {
 
 	public async persist(e: Entity) {
 		this.entityManager.add(this.entityName, e);
-		await this.repository.persist(e);
 	}
 }
