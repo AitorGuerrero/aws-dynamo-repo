@@ -1,4 +1,6 @@
 node_modules
 .idea
 src/**/*.js
+index.js
+index.d.ts
 src/**/*.d.ts
