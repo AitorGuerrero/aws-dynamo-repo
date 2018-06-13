@@ -2,7 +2,6 @@ import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
 import FakeDocumentClient from "./fake-document-client.class";
 import {RepositoryCached} from "./repository.cached.class";
-import {DynamoDBRepository} from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -71,9 +70,7 @@ describe("Having a repository with cache", () => {
 
 		const entityId = "entityId";
 
-		beforeEach(() => {
-			repository.addToCache({id: entityId, unMarshaledAttr: true});
-		});
+		beforeEach(() => repository.addToCache({id: entityId, unMarshaledAttr: true}));
 		describe("and asking again for the entity", () => {
 			let newReturnedEntity: IEntity;
 			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));

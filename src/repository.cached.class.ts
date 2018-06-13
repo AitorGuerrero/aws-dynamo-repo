@@ -43,7 +43,7 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 			const response = await super.getList(notCachedKeys);
 			for (const key of notCachedKeys) {
 				const entity = response.get(key);
-				this.addToCacheByKey(key, entity);
+				await this.addToCacheByKey(key, entity);
 				result.set(key, await this.getFromCache(key));
 			}
 		}
@@ -75,8 +75,8 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 		return getEntityKey(this.config.keySchema, this.config.marshal(e));
 	}
 
-	public addToCache(e: Entity) {
-		this.addToCacheByKey(this.getEntityKey(e), e);
+	public async addToCache(e: Entity) {
+		await this.addToCacheByKey(this.getEntityKey(e), e);
 	}
 
 	public clear() {
@@ -94,9 +94,14 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 		return this.cache.get(key[this.hashKey]).get(key[this.rangeKey]);
 	}
 
-	private addToCacheByKey(key: DocumentClient.Key, entity: Entity) {
-		if (this.keyIsCached(key)) {
-			return;
+	private async addToCacheByKey(key: DocumentClient.Key, entity: Entity) {
+		const currentCached = await this.getFromCache(key);
+		if (currentCached !== undefined) {
+			if (currentCached !== entity) {
+				throw new Error("Trying to add to cache a key in use");
+			} else {
+				return;
+			}
 		}
 		if (!this.cache.has(key[this.hashKey])) {
 			this.cache.set(key[this.hashKey], new Map());
