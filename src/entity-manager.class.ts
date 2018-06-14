@@ -2,16 +2,11 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import getEntityKey from "./get-entity-key";
+import {IRepositoryTableConfig} from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
 type Action = "CREATE" | "UPDATE" | "DELETE";
-
-export interface IEntityManagerTableConfig<Entity> {
-	tableName: string;
-	keySchema: DocumentClient.KeySchema;
-	marshal: (entity: Entity) => DocumentClient.AttributeMap;
-}
 
 export interface IEntity<E> {
 	constructor: Function;
@@ -29,7 +24,7 @@ type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, 
 
 export default class DynamoEntityManager {
 
-	private readonly tableConfigs: Map<string, IEntityManagerTableConfig<any>>;
+	private readonly tableConfigs: Map<string, IRepositoryTableConfig<any>>;
 	private tracked: TrackedTable;
 
 	constructor(
@@ -40,8 +35,10 @@ export default class DynamoEntityManager {
 		this.tableConfigs = new Map();
 	}
 
-	public addTableConfig(entityName: string, config: IEntityManagerTableConfig<any>) {
-		this.tableConfigs.set(entityName, config);
+	public addTableConfig(entityName: string, config: IRepositoryTableConfig<any>) {
+		this.tableConfigs.set(entityName, Object.assign({
+			marshal: (entity: any) => JSON.parse(JSON.stringify(entity)) as DocumentClient.AttributeMap,
+		}, config));
 	}
 
 	public async flush() {

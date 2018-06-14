@@ -3,7 +3,6 @@ import {expect} from "chai";
 import {EventEmitter} from "events";
 import DynamoEntityManager from "./entity-manager.class";
 import FakeDocumentClient from "./fake-document-client.class";
-import {DynamoDBRepository} from "./repository.class";
 import {RepositoryManaged} from "./repository.managed.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
@@ -47,16 +46,9 @@ describe("Having a entity manager", () => {
 				keySchema,
 				marshal,
 				tableName,
+				unMarshal,
 			},
-			new DynamoDBRepository<Entity>(
-				documentClient as any as DocumentClient,
-				{
-					keySchema,
-					marshal,
-					tableName,
-					unMarshal,
-				},
-			),
+			documentClient as any as DocumentClient,
 			entityManager,
 		);
 	});

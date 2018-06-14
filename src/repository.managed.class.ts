@@ -1,14 +1,14 @@
 import {DynamoDB} from "aws-sdk";
-import DynamoEntityManager, {IEntityManagerTableConfig} from "./entity-manager.class";
+import DynamoEntityManager from "./entity-manager.class";
 import generatorToArray from "./generator-to-array";
 import {RepositoryCached} from "./repository.cached.class";
-import {IGenerator, ISearchInput} from "./repository.class";
+import {IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.class";
 
 export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 
 	constructor(
 		private entityName: string,
-		tableConfig: IEntityManagerTableConfig<Entity>,
+		tableConfig: IRepositoryTableConfig<Entity>,
 		documentClient: DynamoDB.DocumentClient,
 		private entityManager: DynamoEntityManager,
 	) {

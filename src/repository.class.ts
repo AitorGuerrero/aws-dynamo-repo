@@ -40,7 +40,7 @@ export interface IRepositoryTableConfig<Entity> {
 	tableName: string;
 	keySchema: DocumentClient.KeySchema;
 	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
-	marshal: (e: Entity) => DocumentClient.AttributeMap;
+	marshal?: (e: Entity) => DocumentClient.AttributeMap;
 	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
 }
 
@@ -49,16 +49,18 @@ export class DynamoDBRepository<Entity> {
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
 		return input.KeyConditionExpression !== undefined;
 	}
-
-	private readonly _unMarshal: (item: DocumentClient.AttributeMap) => Entity;
+	protected readonly config: IRepositoryTableConfig<Entity>;
 	private readonly _hashKey: string;
 	private readonly _rangeKey: string;
 
 	constructor(
 		protected dc: DocumentClient,
-		protected config: IRepositoryTableConfig<Entity>,
+		config: IRepositoryTableConfig<Entity>,
 	) {
-		this._unMarshal = this.config.unMarshal === undefined ? (i: any) => i : this.config.unMarshal;
+		this.config = Object.assign({
+			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
+			unMarshal: (e: DocumentClient.AttributeMap) => JSON.parse(JSON.stringify(e)) as Entity,
+		}, config);
 		this._hashKey = config.keySchema.find((k) => k.KeyType === hash).AttributeName;
 		const rangeSchema = config.keySchema.find((k) => k.KeyType === range);
 		if (rangeSchema) {
@@ -73,7 +75,7 @@ export class DynamoDBRepository<Entity> {
 		};
 		const response = await this.asyncGet(input);
 
-		return response.Item === undefined ? undefined : this._unMarshal(response.Item);
+		return response.Item === undefined ? undefined : this.config.unMarshal(response.Item);
 	}
 
 	public async getList(keys: DocumentClient.Key[]) {
@@ -87,7 +89,7 @@ export class DynamoDBRepository<Entity> {
 		);
 		const result = new Map<DocumentClient.Key, Entity>();
 		for (const item of response.Responses[this.config.tableName]) {
-			const entity = this._unMarshal(item);
+			const entity = this.config.unMarshal(item);
 			result.set(keys.find((k) => sameKey(
 				k,
 				getEntityKey(this.config.keySchema, this.config.marshal(entity)),
@@ -124,7 +126,7 @@ export class DynamoDBRepository<Entity> {
 				});
 			}
 
-			return this._unMarshal(batch.shift());
+			return this.config.unMarshal(batch.shift());
 		}) as IGenerator<Entity>;
 		generator.toArray = generatorToArray;
 
