@@ -52,6 +52,7 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 	}
 
 	public async persist(e: Entity) {
+		await super.addToCache(e);
 		this.entityManager.add(this.entityName, e);
 	}
 }
