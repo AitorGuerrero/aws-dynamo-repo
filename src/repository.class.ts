@@ -3,6 +3,7 @@ import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
+import {EventEmitter} from "events";
 
 const hash = "HASH";
 const range = "RANGE";
@@ -50,6 +51,9 @@ export class DynamoDBRepository<Entity> {
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
 		return input.KeyConditionExpression !== undefined;
 	}
+
+	public readonly eventEmitter: EventEmitter;
+
 	protected readonly config: IRepositoryTableConfig<Entity>;
 	private readonly _hashKey: string;
 	private readonly _rangeKey: string;
@@ -57,6 +61,7 @@ export class DynamoDBRepository<Entity> {
 	constructor(
 		protected dc: DocumentClient,
 		config: IRepositoryTableConfig<Entity>,
+		eventEmitter?: EventEmitter,
 	) {
 		this.config = Object.assign({
 			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
@@ -67,6 +72,7 @@ export class DynamoDBRepository<Entity> {
 		if (rangeSchema) {
 			this._rangeKey = rangeSchema.AttributeName;
 		}
+		this.eventEmitter = eventEmitter || new EventEmitter();
 	}
 
 	public async get(Key: DocumentClient.Key) {

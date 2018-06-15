@@ -1,4 +1,5 @@
 import {DynamoDB} from "aws-sdk";
+import {EventEmitter} from "events";
 import DocumentClient = DynamoDB.DocumentClient;
 import generatorToArray from "./generator-to-array";
 import getEntityKey from "./get-entity-key";
@@ -13,8 +14,9 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 	constructor(
 		dc: DocumentClient,
 		config: IRepositoryTableConfig<Entity>,
+		eventEmitter?: EventEmitter,
 	) {
-		super(dc, config);
+		super(dc, config, eventEmitter);
 		this.cache = new Map();
 		this.hashKey = this.config.keySchema.find((k) => k.KeyType === "HASH").AttributeName;
 		const rangeSchema = this.config.keySchema.find((k) => k.KeyType === "RANGE");
@@ -98,10 +100,12 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 		const currentCached = await this.getFromCache(key);
 		if (currentCached !== undefined) {
 			if (currentCached !== entity) {
-				throw new Error("Trying to add to cache a key in use");
-			} else {
-				return;
+				this.eventEmitter.emit("cacheKeyInUse", {
+					cachedItem: this.getFromCache(key),
+					newItem: entity,
+				});
 			}
+			return;
 		}
 		if (!this.cache.has(key[this.hashKey])) {
 			this.cache.set(key[this.hashKey], new Map());

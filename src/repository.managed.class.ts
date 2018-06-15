@@ -1,4 +1,5 @@
 import {DynamoDB} from "aws-sdk";
+import {EventEmitter} from "events";
 import DynamoEntityManager from "./entity-manager.class";
 import generatorToArray from "./generator-to-array";
 import {RepositoryCached} from "./repository.cached.class";
@@ -11,8 +12,9 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 		tableConfig: IRepositoryTableConfig<Entity>,
 		documentClient: DynamoDB.DocumentClient,
 		private entityManager: DynamoEntityManager,
+		eventEmitter?: EventEmitter,
 	) {
-		super(documentClient, tableConfig);
+		super(documentClient, tableConfig, eventEmitter);
 		this.entityManager.addTableConfig(entityName, tableConfig);
 	}
 
