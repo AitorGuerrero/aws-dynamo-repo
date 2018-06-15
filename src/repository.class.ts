@@ -25,6 +25,7 @@ export interface ICountInput {
 	KeyConditionExpression?: DocumentClient.KeyExpression;
 	ExpressionAttributeNames?: DocumentClient.ExpressionAttributeNameMap;
 	ExpressionAttributeValues?: DocumentClient.ExpressionAttributeValueMap;
+	ExclusiveStartKey?: DocumentClient.Key;
 }
 
 export interface IGenerator<Entity> {
@@ -134,17 +135,23 @@ export class DynamoDBRepository<Entity> {
 	}
 
 	public async count(input: ICountInput) {
-		const documentClientInput = Object.assign({}, input, {TableName: this.config.tableName, Select: "COUNT"});
-		const inputIsQuery = DynamoDBRepository.isQueryInput(input);
-		const response = await (inputIsQuery ?
-			new Promise<DocumentClient.QueryOutput>(
-				(rs, rj) => this.dc.query(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
-			) :
-			new Promise<DocumentClient.ScanOutput>(
-				(rs, rj) => this.dc.scan(documentClientInput, (err, res) => err ? rj(err) : rs(res)),
-			));
+		const documentClientInput = Object.assign(
+			{},
+			input,
+			{
+				Select: "COUNT",
+				TableName: this.config.tableName,
+			},
+		);
+		let total = 0;
+		let response;
+		do {
+			response = await this.asyncRequest(documentClientInput);
+			documentClientInput.ExclusiveStartKey = response.LastEvaluatedKey;
+			total += response.Count;
+		} while (response.LastEvaluatedKey);
 
-		return response.Count;
+		return total;
 	}
 
 	private buildScanBlockGenerator(input: ISearchInput) {
@@ -173,6 +180,12 @@ export class DynamoDBRepository<Entity> {
 
 			return response;
 		};
+	}
+
+	private asyncRequest(input: DocumentClient.QueryInput | DocumentClient.ScanInput) {
+		return DynamoDBRepository.isQueryInput(input) ?
+			this.asyncQuery(input) :
+			this.asyncScan(input);
 	}
 
 	private asyncQuery(input: DocumentClient.QueryInput) {
