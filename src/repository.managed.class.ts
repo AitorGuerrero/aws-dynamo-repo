@@ -45,6 +45,10 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 		return managedGenerator;
 	}
 
+	public delete(e: Entity) {
+		this.entityManager.delete(this.entityName, e);
+	}
+
 	public async persist(e: Entity) {
 		this.entityManager.add(this.entityName, e);
 	}
