@@ -1,6 +1,7 @@
 import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
 import {EventEmitter} from "events";
+import {beforeEach, describe, it} from "mocha";
 import DynamoEntityManager from "./entity-manager.class";
 import FakeDocumentClient from "./fake-document-client.class";
 import {RepositoryManaged} from "./repository.managed.class";
@@ -13,15 +14,22 @@ describe("Having a entity manager", () => {
 
 	class Entity {
 		public updated: boolean;
+		public toDelete: boolean;
+		public nested = {nestedUpdated: false, nestedToDelete: true};
 		constructor(public id: string) {}
 	}
 
-	function unMarshal(m: {id: string, updated: boolean}): Entity {
-		return new Entity(m.id);
+	function unMarshal(m: any): Entity {
+		const e = new Entity(m.id);
+		e.updated = m.updated;
+		e.toDelete = m.toDelete;
+		e.nested = m.nested;
+
+		return e;
 	}
 
 	function marshal(e: Entity) {
-		return {id: e.id, updated: e.updated};
+		return JSON.parse(JSON.stringify(e));
 	}
 
 	const tableName = "tableName";
@@ -34,8 +42,6 @@ describe("Having a entity manager", () => {
 
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
-		await documentClient.set(tableName, {id: "second", flag: 20, a: {b: 3, c: 4}});
-		await documentClient.set(tableName, {id: "third", flag: 30, a: {b: 5, c: 6}});
 		entityManager = new DynamoEntityManager(
 			documentClient as any as DocumentClient,
 			new EventEmitter(),
@@ -59,15 +65,29 @@ describe("Having a entity manager", () => {
 		let marshaledEntity: Entity;
 
 		beforeEach(async () => {
-			marshaledEntity = {id: entityId, updated: false};
+			marshaledEntity = {
+				id: entityId,
+				nested: {nestedUpdated: false, nestedToDelete: true},
+				toDelete: true,
+				updated: false,
+			};
 			await documentClient.set(tableName, marshaledEntity);
 			entity = await repository.get({id: entityId});
 		});
 
-		describe("when updating a entity", () => {
-			beforeEach(() => {
-				entity.updated = true;
+		describe("and updating a nested attribute", () => {
+			beforeEach(async () => entity.nested.nestedUpdated = true);
+			describe("and flushed", () => {
+				beforeEach(() => entityManager.flush());
+				it("should update the item in the collection", async () => {
+					const item = await documentClient.getByKey<Entity>(tableName, {id: entityId});
+					expect(item.nested.nestedUpdated).to.be.true;
+				});
 			});
+		});
+
+		describe("and updating a attribute", () => {
+			beforeEach(async () => entity.updated = true);
 			describe("and flushed", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {
@@ -77,14 +97,37 @@ describe("Having a entity manager", () => {
 			});
 		});
 
-		describe("when the entity is same as original", () => {
+		describe("and deleting a attribute", () => {
+			beforeEach(async () => entity.toDelete = undefined);
+			describe("and flushed", () => {
+				beforeEach(() => entityManager.flush());
+				it("should update the item in the collection", async () => {
+					const item = await documentClient.getByKey<Entity>(tableName, {id: entityId});
+					expect(item.toDelete).to.be.undefined;
+				});
+			});
+		});
+
+		describe("and deleting a nested attribute", () => {
+			beforeEach(async () => entity.nested.nestedToDelete = undefined);
+			describe("and flushed", () => {
+				beforeEach(() => entityManager.flush());
+				it("should update the item in the collection", async () => {
+					const item = await documentClient.getByKey<Entity>(tableName, {id: entityId});
+					console.log(JSON.stringify(item));
+					expect(item.nested.nestedToDelete).to.be.undefined;
+				});
+			});
+		});
+
+		describe("and the entity is same as original", () => {
 			it("should not update the item in the collection", async () => {
 				documentClient.failOnCall();
 				await entityManager.flush();
 			});
 		});
 
-		describe("when deleting a entity", () => {
+		describe("and deleting a entity", () => {
 			it("should remove it from collection", async () => {
 				entityManager.delete(entityName, entity);
 				await entityManager.flush();

@@ -1,5 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
+import {beforeEach, describe, it} from "mocha";
 import FakeDocumentClient from "./fake-document-client.class";
 import {RepositoryCached} from "./repository.cached.class";
 
@@ -11,12 +12,12 @@ describe("Having a repository with cache", () => {
 
 	interface IMarshaled {
 		id: string;
-		marshaledAttr: true;
+		marshaled: true;
 	}
 
 	interface IEntity {
 		id: string;
-		unMarshaledAttr: true;
+		marshaled: false;
 	}
 
 	const tableName = "tableName";
@@ -25,11 +26,11 @@ describe("Having a repository with cache", () => {
 	let repository: RepositoryCached<IEntity>;
 
 	function unMarshal(m: IMarshaled): IEntity {
-		return {id: m.id, unMarshaledAttr: m.marshaledAttr};
+		return Object.assign(JSON.parse(JSON.stringify(m)), {marshaled: false});
 	}
 
-	function marshal(e: IEntity) {
-		return e;
+	function marshal(e: IEntity): IMarshaled {
+		return Object.assign(JSON.parse(JSON.stringify(e)), {marshaled: true});
 	}
 
 	beforeEach(() => {
@@ -70,7 +71,7 @@ describe("Having a repository with cache", () => {
 
 		const entityId = "entityId";
 
-		beforeEach(() => repository.addToCache({id: entityId, unMarshaledAttr: true}));
+		beforeEach(() => repository.addToCache({id: entityId, marshaled: false}));
 		describe("and asking again for the entity", () => {
 			let newReturnedEntity: IEntity;
 			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));
@@ -94,11 +95,10 @@ describe("Having a repository with cache", () => {
 		let marshaledEntity: IMarshaled;
 
 		beforeEach(async () => {
-			marshaledEntity = {id: entityId, marshaledAttr: true};
+			marshaledEntity = {id: entityId, marshaled: true};
 			await documentClient.set(tableName, marshaledEntity);
-			await documentClient.set(tableName, {id: entityId, marshaledAttr: true});
-			await documentClient.set(tableName, {id: secondEntityId, marshaledAttr: true});
-			await documentClient.set(tableName, {id: thirdEntityId, marshaledAttr: true});
+			await documentClient.set(tableName, {id: secondEntityId, marshaled: true});
+			await documentClient.set(tableName, {id: thirdEntityId, marshaled: true});
 		});
 
 		describe("when asking for the entity", () => {
@@ -109,7 +109,7 @@ describe("Having a repository with cache", () => {
 
 			it("should return the unmarshaled entity", async () => {
 				expect(returnedEntity.id).to.be.eq(entityId);
-				expect(returnedEntity.unMarshaledAttr).to.be.eq(true);
+				expect(returnedEntity.marshaled).to.be.eq(false);
 			});
 		});
 
@@ -129,7 +129,7 @@ describe("Having a repository with cache", () => {
 				const getNextEntity = repository.search({});
 				const entity = await getNextEntity();
 				expect(entity.id).eq(entityId);
-				expect(entity.unMarshaledAttr).eq(true);
+				expect(entity.marshaled).eq(false);
 				expect((await getNextEntity()).id).to.be.eq(secondEntityId);
 				expect((await getNextEntity()).id).to.be.eq(thirdEntityId);
 				expect(await getNextEntity()).to.be.undefined;
