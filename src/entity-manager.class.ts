@@ -66,9 +66,27 @@ export default class DynamoEntityManager {
 
 			throw err;
 		}
+		this.updateTrackedStatus();
 		this.flushing = false;
-		this.clear();
 		this.eventEmitter.emit(eventType.flushed);
+	}
+
+	public updateTrackedStatus() {
+		this.tracked.forEach((value, key) => {
+			switch (value.action) {
+				case "CREATE":
+					value.action = "UPDATE";
+					value.initialStatus = JSON.stringify(value);
+					break;
+				case "UPDATE":
+					value.initialStatus = JSON.stringify(value);
+					break;
+				case "DELETE":
+					this.tracked.delete(key);
+					break;
+			}
+			value.initialStatus = JSON.stringify(value);
+		});
 	}
 
 	public track<E>(entityName: string, entity: E & IEntity<E>) {
