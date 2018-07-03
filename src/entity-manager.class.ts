@@ -26,6 +26,7 @@ export default class DynamoEntityManager {
 
 	private readonly tableConfigs: Map<string, IRepositoryTableConfig<any>>;
 	private tracked: TrackedTable;
+	private flushing = false;
 
 	constructor(
 		private dc: DocumentClient,
@@ -42,6 +43,8 @@ export default class DynamoEntityManager {
 	}
 
 	public async flush() {
+		this.guardFlushing();
+		this.flushing = true;
 		const processed: Array<Promise<any>> = [];
 		for (const entityConfig of this.tracked.values()) {
 			switch (entityConfig.action) {
@@ -63,10 +66,13 @@ export default class DynamoEntityManager {
 
 			throw err;
 		}
+		this.flushing = false;
+		this.clear();
 		this.eventEmitter.emit(eventType.flushed);
 	}
 
 	public track<E>(entityName: string, entity: E & IEntity<E>) {
+		this.guardFlushing();
 		if (entity === undefined) {
 			return;
 		}
@@ -77,6 +83,7 @@ export default class DynamoEntityManager {
 	}
 
 	public add<E>(entityName: string, entity: E & IEntity<E>) {
+		this.guardFlushing();
 		if (entity === undefined) {
 			return;
 		}
@@ -87,6 +94,7 @@ export default class DynamoEntityManager {
 	}
 
 	public delete<E>(entityName: string, entity: E & IEntity<E>) {
+		this.guardFlushing();
 		if (entity === undefined) {
 			return;
 		}
@@ -101,6 +109,7 @@ export default class DynamoEntityManager {
 	}
 
 	public clear() {
+		this.guardFlushing();
 		this.tracked = new Map();
 	}
 
@@ -163,5 +172,11 @@ export default class DynamoEntityManager {
 		return new Promise<DocumentClient.DeleteItemOutput>(
 			(rs, rj) => this.dc.delete(request, (err) => err ? rj(err) : rs()),
 		);
+	}
+
+	private guardFlushing() {
+		if (this.flushing) {
+			throw new Error("Dynamo entity manager currently flushing");
+		}
 	}
 }
