@@ -62,6 +62,7 @@ export default class DynamoEntityManager {
 		try {
 			await Promise.all(processed);
 		} catch (err) {
+			this.flushing = false;
 			this.eventEmitter.emit(eventType.errorFlushing);
 
 			throw err;
