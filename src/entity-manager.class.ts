@@ -20,7 +20,14 @@ export enum eventType {
 	errorFlushing = "error.flushing",
 }
 
-type TrackedTable = Map<any, {action: Action, initialStatus?: any, entity: any, entityName: string}>;
+interface ITrackedITem {
+	action: Action;
+	initialStatus?: any;
+	entity: any;
+	entityName: string;
+}
+
+type TrackedTable = Map<any, ITrackedITem>;
 
 export default class DynamoEntityManager {
 
@@ -77,10 +84,10 @@ export default class DynamoEntityManager {
 			switch (value.action) {
 				case "CREATE":
 					value.action = "UPDATE";
-					value.initialStatus = JSON.stringify(value);
+					value.initialStatus = JSON.stringify(value.entity);
 					break;
 				case "UPDATE":
-					value.initialStatus = JSON.stringify(value);
+					value.initialStatus = JSON.stringify(value.entity);
 					break;
 				case "DELETE":
 					this.tracked.delete(key);
