@@ -93,7 +93,6 @@ export default class DynamoEntityManager {
 					this.tracked.delete(key);
 					break;
 			}
-			value.initialStatus = JSON.stringify(value);
 		});
 	}
 
