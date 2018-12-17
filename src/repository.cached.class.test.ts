@@ -8,7 +8,7 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 describe("Having a repository with cache", () => {
 
-	const keySchema = [{AttributeName: "id", KeyType: "HASH"}];
+	const keySchema = {hash: "id"};
 
 	interface IMarshaled {
 		id: string;

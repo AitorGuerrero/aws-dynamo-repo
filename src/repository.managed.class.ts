@@ -1,6 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
-import DynamoEntityManager from "./entity-manager.class";
+import DynamoEntityManager from "./entity-manager/entity-manager.class";
 import generatorToArray from "./generator-to-array";
 import {RepositoryCached} from "./repository.cached.class";
 import {IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.class";

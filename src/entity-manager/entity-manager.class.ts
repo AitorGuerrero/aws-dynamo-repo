@@ -1,7 +1,7 @@
 /* tslint:disable:ban-types */
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
-import getEntityKey from "./get-entity-key";
+import ErrorFlushingEntity from "./error.flushing.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -13,10 +13,7 @@ enum Action {create, update, delete}
 
 export enum eventType {
 	flushed = "flushed",
-	errorCreating = "error.creating",
-	errorUpdating = "error.updating",
-	errorDeleting = "error.deleting",
-	errorFlushing = "error.flushing",
+	error = "error",
 }
 
 interface ITrackedITem<Entity> {
@@ -30,11 +27,61 @@ type TrackedTable<E> = Map<any, ITrackedITem<E>>;
 
 interface ITableConfig<E> {
 	tableName: string;
-	keySchema: DocumentClient.KeySchema;
+	keySchema: {
+		hash: string;
+		range?: string;
+	};
 	marshal?: (e: E) => DocumentClient.AttributeMap;
 }
 
 export default class DynamoEntityManager {
+
+	private static buildKeyConditionExpression(entity: any, tableConf: ITableConfig<unknown>) {
+		const result: any = {
+			ConditionExpression: "#keyHash<>::keyHash",
+			ExpressionAttributeNames: {"#keyHash": tableConf.keySchema.hash},
+			ExpressionAttributeValues: {":keyHash": entity[tableConf.keySchema.hash]},
+		};
+		if (tableConf.keySchema.range !== undefined) {
+			result.ConditionExpression = result.ConditionExpression + " and #keyRange<>:keyRange";
+			result.ExpressionAttributeNames["#keyRange"] = tableConf.keySchema.range;
+			result.ExpressionAttributeValues[":keyRange"] = entity[tableConf.keySchema.range];
+		}
+
+		return result;
+	}
+
+	private static getEntityKey<Entity>(entity: Entity, tableConfig: ITableConfig<unknown>) {
+		const key: DocumentClient.Key = {};
+		key[tableConfig.keySchema.hash] = (entity as any)[tableConfig.keySchema.hash];
+		if (tableConfig.keySchema.range) {
+			key[tableConfig.keySchema.range] = (entity as any)[tableConfig.keySchema.range];
+		}
+
+		return key;
+	}
+
+	private static createItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>): DynamoDB.TransactWriteItem {
+		const marshaledEntity = tableConfig.marshal(entity);
+		return {
+			Put: Object.assign(
+				DynamoEntityManager.buildKeyConditionExpression(marshaledEntity, tableConfig),
+				{
+					Item: marshaledEntity,
+					TableName: tableConfig.tableName,
+				},
+			),
+		};
+	}
+
+	private static deleteItem<E>(item: E & IEntity<E>, tableConfig: ITableConfig<E>): DynamoDB.TransactWriteItem {
+		return {
+			Delete: {
+				Key: DynamoEntityManager.getEntityKey(item, tableConfig),
+				TableName: tableConfig.tableName,
+			},
+		};
+	}
 
 	private readonly tableConfigs: {[tableName: string]: ITableConfig<unknown>} = {};
 	private tracked: TrackedTable<unknown> = new Map();
@@ -56,15 +103,17 @@ export default class DynamoEntityManager {
 	public async flush() {
 		this.guardFlushing();
 		this.flushing = true;
-		const processed: Array<Promise<any>> = [];
+		const operations: DocumentClient.TransactWriteItem[] = [];
 		for (const entityConfig of this.tracked.values()) {
-			processed.push(this.flushEntity(entityConfig, entityConfig.tableConfig));
+			operations.push(this.flushEntity(entityConfig, entityConfig.tableConfig));
 		}
 		try {
-			await Promise.all(processed);
+			await this.asyncTransaction({
+				TransactItems: operations,
+			});
 		} catch (err) {
 			this.flushing = false;
-			this.eventEmitter.emit(eventType.errorFlushing);
+			this.eventEmitter.emit(eventType.error, new ErrorFlushingEntity(err));
 
 			throw err;
 		}
@@ -137,75 +186,37 @@ export default class DynamoEntityManager {
 		this.tracked = new Map();
 	}
 
-	private flushEntity<E>(entityConfig: ITrackedITem<E>, tableConfig: ITableConfig<E>) {
+	private flushEntity<E>(entityConfig: ITrackedITem<E>, tableConfig: ITableConfig<E>): DynamoDB.TransactWriteItem {
 		switch (entityConfig.action) {
 			case Action.update:
 				return this.updateItem(entityConfig.entity, tableConfig);
 			case Action.delete:
-				return this.deleteItem(entityConfig.entity, tableConfig);
+				return DynamoEntityManager.deleteItem(entityConfig.entity, tableConfig);
 			case Action.create:
-				return this.createItem(entityConfig.entity, tableConfig);
+				return DynamoEntityManager.createItem(entityConfig.entity, tableConfig);
 		}
 	}
 
-	private async createItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>) {
-		const request: DocumentClient.PutItemInput = {
-			ConditionExpression: "",
-			Item: tableConfig.marshal(entity),
-			TableName: tableConfig.tableName,
-		};
-		try {
-			await this.asyncPut(request);
-		} catch (err) {
-			this.eventEmitter.emit(eventType.errorCreating, err, entity);
-
-			throw err;
-		}
-	}
-
-	private async updateItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>) {
+	private updateItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>): DocumentClient.TransactWriteItem {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
-		const request = {
-			Item: tableConfig.marshal(entity),
-			TableName: tableConfig.tableName,
-		};
-		try {
-			await this.asyncPut(request);
-		} catch (err) {
-			this.eventEmitter.emit(eventType.errorUpdating, err, entity);
 
-			throw err;
-		}
+		return {
+			Put: {
+				Item: tableConfig.marshal(entity),
+				TableName: tableConfig.tableName,
+			},
+		};
 	}
 
 	private entityHasChanged<E>(entity: E & IEntity<E>) {
 		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem<E>(item: E & IEntity<E>, tableConfig: ITableConfig<E>) {
-		try {
-			return this.asyncDelete({
-				Key: getEntityKey(tableConfig.keySchema, tableConfig.marshal(item)),
-				TableName: tableConfig.tableName,
-			});
-		} catch (err) {
-			this.eventEmitter.emit(eventType.errorDeleting, err, item);
-
-			throw err;
-		}
-	}
-
-	private asyncPut(request: DocumentClient.PutItemInput) {
-		return new Promise<DocumentClient.PutItemOutput>(
-			(rs, rj) => this.dc.put(request, (err, res) => err ? rj(err) : rs(res)),
-		);
-	}
-
-	private asyncDelete(request: DocumentClient.DeleteItemInput) {
-		return new Promise<DocumentClient.DeleteItemOutput>(
-			(rs, rj) => this.dc.delete(request, (err) => err ? rj(err) : rs()),
+	private asyncTransaction(request: DocumentClient.TransactWriteItemsInput) {
+		return new Promise<DocumentClient.TransactWriteItemsOutput>(
+			(rs, rj) => this.dc.transactWrite(request, (err, res) => err ? rj(err) : rs(res)),
 		);
 	}
 

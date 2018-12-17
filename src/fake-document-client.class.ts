@@ -9,7 +9,6 @@ export default class FakeDocumentClient {
 
 	public stepMode: boolean;
 	public readonly collections: {[tableName: string]: {[hashKey: string]: {[rangeKey: string]: string}}};
-	private readonly keySchemas: {[tableName: string]: {hashKey: string, rangeKey: string}};
 	private resumed: Promise<any>;
 	private resumedEventEmitter: EventEmitter;
 	private shouldFail: boolean;
@@ -18,22 +17,13 @@ export default class FakeDocumentClient {
 	private rangeKey: string;
 
 	constructor(
-		keySchemas: {[tableName: string]: DocumentClient.KeySchema},
+		private readonly keySchemas: {[tableName: string]: {hash: string, range?: string}},
 	) {
 		this.resumed = Promise.resolve();
 		this.stepMode = false;
 		this.resumedEventEmitter = new EventEmitter();
 		this.shouldFail = false;
 		this.collections = {};
-		this.keySchemas = {};
-		for (const tableName of Object.keys(keySchemas)) {
-			this.keySchemas[tableName] = {
-				hashKey: keySchemas[tableName].find((ks) => ks.KeyType === "HASH").AttributeName,
-				rangeKey: keySchemas[tableName].find((ks) => ks.KeyType === "RANGE") === undefined ?
-					undefined :
-					keySchemas[tableName].find((ks) => ks.KeyType === "RANGE").AttributeName,
-			};
-		}
 	}
 
 	public async get(
@@ -42,8 +32,8 @@ export default class FakeDocumentClient {
 	) {
 		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		const hashKey = input.Key[this.keySchemas[input.TableName].hashKey];
-		const rangeKey = input.Key[this.keySchemas[input.TableName].rangeKey];
+		const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+		const rangeKey = input.Key[this.keySchemas[input.TableName].range];
 		this.ensureHashKey(input.TableName, hashKey);
 		const marshaled = this.collections[input.TableName][hashKey][rangeKey];
 		cb(null, {Item: marshaled ? JSON.parse(this.collections[input.TableName][hashKey][rangeKey]) : undefined});
@@ -67,8 +57,8 @@ export default class FakeDocumentClient {
 		for (const tableName in input.RequestItems) {
 			response.Responses[tableName] = [];
 			for (const request of input.RequestItems[tableName].Keys) {
-				const hashKey = request[this.keySchemas[tableName].hashKey];
-				const rangeKey = request[this.keySchemas[tableName].rangeKey];
+				const hashKey = request[this.keySchemas[tableName].hash];
+				const rangeKey = request[this.keySchemas[tableName].range];
 				this.ensureHashKey(tableName, hashKey);
 				const item = this.collections[tableName][hashKey][rangeKey];
 				if (item !== undefined) {
@@ -105,8 +95,8 @@ export default class FakeDocumentClient {
 		}
 		if (hashKey !== undefined) {
 			response.LastEvaluatedKey = {
-				[this.keySchemas[input.TableName].hashKey]: hashKey,
-				[this.keySchemas[input.TableName].rangeKey]: rangeKey,
+				[this.keySchemas[input.TableName].hash]: hashKey,
+				[this.keySchemas[input.TableName].range]: rangeKey,
 			};
 		}
 
@@ -139,8 +129,8 @@ export default class FakeDocumentClient {
 		}
 		if (hashKey !== undefined) {
 			response.LastEvaluatedKey = {
-				[this.keySchemas[input.TableName].hashKey]: hashKey,
-				[this.keySchemas[input.TableName].rangeKey]: rangeKey,
+				[this.keySchemas[input.TableName].hash]: hashKey,
+				[this.keySchemas[input.TableName].range]: rangeKey,
 			};
 		}
 
@@ -197,8 +187,8 @@ export default class FakeDocumentClient {
 	) {
 		await this.awaitFlush();
 		this.guardShouldFail(cb);
-		const hashKey = input.Item[this.keySchemas[input.TableName].hashKey];
-		const rangeKey = input.Item[this.keySchemas[input.TableName].rangeKey];
+		const hashKey = input.Item[this.keySchemas[input.TableName].hash];
+		const rangeKey = input.Item[this.keySchemas[input.TableName].range];
 		this.ensureHashKey(input.TableName, hashKey);
 		this.collections[input.TableName][hashKey][rangeKey] = JSON.stringify(input.Item);
 		cb(null, {});
@@ -208,8 +198,8 @@ export default class FakeDocumentClient {
 		input: DocumentClient.DeleteItemInput,
 		cb: (err?: Error, result?: DocumentClient.DeleteItemOutput) => any,
 	) {
-		const hashKey = input.Key[this.keySchemas[input.TableName].hashKey];
-		const rangeKey = input.Key[this.keySchemas[input.TableName].rangeKey];
+		const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+		const rangeKey = input.Key[this.keySchemas[input.TableName].range];
 		this.collections[input.TableName][hashKey][rangeKey] = undefined;
 		cb(null, {});
 	}
@@ -224,6 +214,27 @@ export default class FakeDocumentClient {
 		this.error = error;
 	}
 
+	public transactWrite(
+		input: DocumentClient.TransactWriteItemsInput,
+		cb: (err?: Error, result?: DocumentClient.TransactWriteItemsOutput) => any,
+	) {
+		input.TransactItems
+			.filter((i) => i !== undefined)
+			.forEach((i) => {
+				if (i.Delete) {
+					const hashKey = i.Delete.Key[this.keySchemas[i.Delete.TableName].hash];
+					const rangeKey = i.Delete.Key[this.keySchemas[i.Delete.TableName].range];
+					this.collections[i.Delete.TableName][hashKey][rangeKey] = undefined;
+				} else if (i.Put) {
+					const hashKey = i.Put.Item[this.keySchemas[i.Put.TableName].hash];
+					const rangeKey = i.Put.Item[this.keySchemas[i.Put.TableName].range];
+					this.ensureHashKey(i.Put.TableName, hashKey);
+					this.collections[i.Put.TableName][hashKey][rangeKey] = JSON.stringify(i.Put.Item);
+				}
+			});
+		cb(null, {});
+	}
+
 	private getStartKey(tableName: string, exclusiveStartKey: DocumentClient.Key) {
 		let range: string;
 		let hash: string;
@@ -234,9 +245,9 @@ export default class FakeDocumentClient {
 			return {hash, range};
 		}
 
-		hash = exclusiveStartKey[this.keySchemas[tableName].hashKey];
-		const rangeKeys = Object.keys(this.collections[tableName][exclusiveStartKey[this.keySchemas[tableName].hashKey]]);
-		range = rangeKeys[rangeKeys.indexOf(exclusiveStartKey[this.keySchemas[tableName].rangeKey]) + 1];
+		hash = exclusiveStartKey[this.keySchemas[tableName].hash];
+		const rangeKeys = Object.keys(this.collections[tableName][exclusiveStartKey[this.keySchemas[tableName].hash]]);
+		range = rangeKeys[rangeKeys.indexOf(exclusiveStartKey[this.keySchemas[tableName].range]) + 1];
 		if (range === undefined) {
 			const hashKeys = Object.keys(this.collections[tableName]);
 			hash = hashKeys[hashKeys.indexOf(hash) + 1];

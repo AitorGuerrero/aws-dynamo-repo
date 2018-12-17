@@ -2,14 +2,11 @@ import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import DocumentClient = DynamoDB.DocumentClient;
 import generatorToArray from "./generator-to-array";
-import getEntityKey from "./get-entity-key";
 import {DynamoDBRepository, IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.class";
 
 export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 
 	private readonly cache: Map<any, Map<any, Promise<Entity>>>;
-	private readonly hashKey: string;
-	private readonly rangeKey: string;
 
 	constructor(
 		dc: DocumentClient,
@@ -18,42 +15,26 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 	) {
 		super(dc, config, eventEmitter);
 		this.cache = new Map();
-		this.hashKey = this.config.keySchema.find((k) => k.KeyType === "HASH").AttributeName;
-		const rangeSchema = this.config.keySchema.find((k) => k.KeyType === "RANGE");
-		this.rangeKey = rangeSchema ? rangeSchema.AttributeName : undefined;
 	}
 
 	public get(key: DocumentClient.Key): Promise<Entity> {
-		if (!this.cache.has(key[this.hashKey])) {
-			this.cache.set(key[this.hashKey], new Map());
+		if (!this.cache.has(key[this.config.keySchema.hash])) {
+			this.cache.set(key[this.config.keySchema.hash], new Map());
 		}
-		if (!this.cache.get(key[this.hashKey]).has(key[this.rangeKey])) {
-			this.cache.get(key[this.hashKey]).set(key[this.rangeKey], super.get(key));
+		if (!this.cache.get(key[this.config.keySchema.hash]).has(key[this.config.keySchema.range])) {
+			this.cache.get(key[this.config.keySchema.hash]).set(key[this.config.keySchema.range], super.get(key));
 		}
-		return this.cache.get(key[this.hashKey]).get(key[this.rangeKey]);
+		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
 	}
 
 	public async getList(keys: DocumentClient.Key[]) {
-		const result = new Map<DocumentClient.Key, Entity>();
-		const notCachedKeys: DocumentClient.Key[] = [];
+		const keysMap = new Map<DocumentClient.Key, Entity>();
+		await this.loadEntities(this.filterNotCachedKeys(keys));
 		for (const key of keys) {
-			if (!this.keyIsCached(key)) {
-				notCachedKeys.push(key);
-			}
-		}
-		if (notCachedKeys.length > 0) {
-			const response = await super.getList(notCachedKeys);
-			for (const key of notCachedKeys) {
-				const entity = response.get(key);
-				await this.addToCacheByKey(key, entity);
-				result.set(key, await this.getFromCache(key));
-			}
-		}
-		for (const key of keys) {
-			result.set(key, await this.getFromCache(key));
+			keysMap.set(key, await this.getFromCache(key));
 		}
 
-		return result;
+		return keysMap;
 	}
 
 	public search(input: ISearchInput) {
@@ -74,7 +55,7 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 	}
 
 	public getEntityKey(e: Entity) {
-		return getEntityKey(this.config.keySchema, this.config.marshal(e));
+		return DynamoDBRepository.getEntityKey<Entity>(e, this.config);
 	}
 
 	public async addToCache(e: Entity) {
@@ -85,15 +66,38 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 		this.cache.clear();
 	}
 
+	private filterNotCachedKeys(keys: DocumentClient.Key[]) {
+		const notCachedKeys: DocumentClient.Key[] = [];
+		for (const key of keys) {
+			if (!this.keyIsCached(key)) {
+				notCachedKeys.push(key);
+			}
+		}
+
+		return notCachedKeys;
+	}
+
+	private async loadEntities(keys: DocumentClient.Key[]) {
+		if (keys.length === 0) {
+			return;
+		}
+		const response = await super.getList(keys);
+		for (const key of keys) {
+			const entity = response.get(key);
+			await this.addToCacheByKey(key, entity);
+		}
+	}
+
 	private keyIsCached(key: DocumentClient.Key) {
-		return this.cache.has(key[this.hashKey]) && this.cache.get(key[this.hashKey]).has(key[this.rangeKey]);
+		return this.cache.has(key[this.config.keySchema.hash])
+			&& this.cache.get(key[this.config.keySchema.hash]).has(key[this.config.keySchema.range]);
 	}
 
 	private getFromCache(key: DocumentClient.Key) {
-		if (!this.cache.has(key[this.hashKey])) {
+		if (!this.cache.has(key[this.config.keySchema.hash])) {
 			return;
 		}
-		return this.cache.get(key[this.hashKey]).get(key[this.rangeKey]);
+		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
 	}
 
 	private async addToCacheByKey(key: DocumentClient.Key, entity: Entity) {
@@ -107,9 +111,9 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 			}
 			return;
 		}
-		if (!this.cache.has(key[this.hashKey])) {
-			this.cache.set(key[this.hashKey], new Map());
+		if (!this.cache.has(key[this.config.keySchema.hash])) {
+			this.cache.set(key[this.config.keySchema.hash], new Map());
 		}
-		this.cache.get(key[this.hashKey]).set(key[this.rangeKey], Promise.resolve(entity));
+		this.cache.get(key[this.config.keySchema.hash]).set(key[this.config.keySchema.range], Promise.resolve(entity));
 	}
 }

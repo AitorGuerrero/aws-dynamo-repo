@@ -2,7 +2,7 @@ import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
 import {EventEmitter} from "events";
 import {beforeEach, describe, it} from "mocha";
-import DynamoEntityManager from "./entity-manager.class";
+import DynamoEntityManager from "./entity-manager/entity-manager.class";
 import FakeDocumentClient from "./fake-document-client.class";
 import {RepositoryManaged} from "./repository.managed.class";
 
@@ -10,7 +10,7 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 describe("Having a entity manager", () => {
 
-	const keySchema = [{AttributeName: "id", KeyType: "HASH"}];
+	const keySchema = {hash: "id"};
 
 	class Entity {
 		public updated: boolean;
@@ -47,7 +47,7 @@ describe("Having a entity manager", () => {
 		);
 		repository = new RepositoryManaged(
 			{
-				keySchema,
+				keySchema: {hash: "id"},
 				marshal,
 				tableName,
 				unMarshal,

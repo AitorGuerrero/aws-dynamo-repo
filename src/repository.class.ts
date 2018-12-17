@@ -1,12 +1,8 @@
 import {DynamoDB} from "aws-sdk";
 import generatorToArray from "./generator-to-array";
-import getEntityKey from "./get-entity-key";
 
 import DocumentClient = DynamoDB.DocumentClient;
 import {EventEmitter} from "events";
-
-const hash = "HASH";
-const range = "RANGE";
 
 export interface ISearchInput {
 	IndexName?: DocumentClient.IndexName;
@@ -40,13 +36,27 @@ export interface IGlobalSecondaryIndex {
 
 export interface IRepositoryTableConfig<Entity> {
 	tableName: string;
-	keySchema: DocumentClient.KeySchema;
+	keySchema: {
+		hash: string;
+		range?: string;
+	};
 	secondaryIndexes?: {[indexName: string]: IGlobalSecondaryIndex};
 	marshal?: (e: Entity) => DocumentClient.AttributeMap;
 	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
 }
 
 export class DynamoDBRepository<Entity> {
+
+	protected static getEntityKey<Entity>(entity: Entity, tableConfig: IRepositoryTableConfig<unknown>) {
+		const marshaledEntity = tableConfig.marshal(entity);
+		const key: DocumentClient.Key = {};
+		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
+		if (tableConfig.keySchema.range) {
+			key[tableConfig.keySchema.range] = marshaledEntity[tableConfig.keySchema.range];
+		}
+
+		return key;
+	}
 
 	private static isQueryInput(input: any): input is DocumentClient.QueryInput {
 		return input.KeyConditionExpression !== undefined;
@@ -67,11 +77,6 @@ export class DynamoDBRepository<Entity> {
 			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
 			unMarshal: (e: DocumentClient.AttributeMap) => JSON.parse(JSON.stringify(e)) as Entity,
 		}, config);
-		this._hashKey = config.keySchema.find((k) => k.KeyType === hash).AttributeName;
-		const rangeSchema = config.keySchema.find((k) => k.KeyType === range);
-		if (rangeSchema) {
-			this._rangeKey = rangeSchema.AttributeName;
-		}
 		this.eventEmitter = eventEmitter || new EventEmitter();
 	}
 
@@ -99,7 +104,7 @@ export class DynamoDBRepository<Entity> {
 			const entity = this.config.unMarshal(item);
 			result.set(keys.find((k) => sameKey(
 				k,
-				getEntityKey(this.config.keySchema, this.config.marshal(entity)),
+				DynamoDBRepository.getEntityKey<Entity>(entity, this.config),
 			)), entity);
 		}
 
