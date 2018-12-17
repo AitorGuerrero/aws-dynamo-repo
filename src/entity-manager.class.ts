@@ -6,11 +6,11 @@ import {IRepositoryTableConfig} from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-type Action = "CREATE" | "UPDATE" | "DELETE";
-
 export interface IEntity<E> {
 	constructor: Function;
 }
+
+enum Action {create, update, delete}
 
 export enum eventType {
 	flushed = "flushed",
@@ -20,19 +20,19 @@ export enum eventType {
 	errorFlushing = "error.flushing",
 }
 
-interface ITrackedITem {
+interface ITrackedITem<Entity> {
 	action: Action;
-	initialStatus?: any;
-	entity: any;
+	initialStatus?: unknown;
+	entity: Entity;
 	entityName: string;
 }
 
-type TrackedTable = Map<any, ITrackedITem>;
+type TrackedTable<E> = Map<any, ITrackedITem<E>>;
 
 export default class DynamoEntityManager {
 
 	private readonly tableConfigs: Map<string, IRepositoryTableConfig<any>>;
-	private tracked: TrackedTable;
+	private tracked: TrackedTable<unknown>;
 	private flushing = false;
 
 	constructor(
@@ -54,17 +54,7 @@ export default class DynamoEntityManager {
 		this.flushing = true;
 		const processed: Array<Promise<any>> = [];
 		for (const entityConfig of this.tracked.values()) {
-			switch (entityConfig.action) {
-				case "UPDATE":
-					processed.push(this.updateItem(entityConfig.entityName, entityConfig.entity));
-					break;
-				case "DELETE":
-					processed.push(this.deleteItem(entityConfig.entityName, entityConfig.entity));
-					break;
-				case "CREATE":
-					processed.push(this.createItem(entityConfig.entityName, entityConfig.entity));
-					break;
-			}
+			processed.push(this.flushEntity(entityConfig, this.tableConfigs.get(entityConfig.entityName)));
 		}
 		try {
 			await Promise.all(processed);
@@ -82,14 +72,14 @@ export default class DynamoEntityManager {
 	public updateTrackedStatus() {
 		this.tracked.forEach((value, key) => {
 			switch (value.action) {
-				case "CREATE":
-					value.action = "UPDATE";
+				case Action.create:
+					value.action = Action.update;
 					value.initialStatus = JSON.stringify(value.entity);
 					break;
-				case "UPDATE":
+				case Action.update:
 					value.initialStatus = JSON.stringify(value.entity);
 					break;
-				case "DELETE":
+				case Action.delete:
 					this.tracked.delete(key);
 					break;
 			}
@@ -104,7 +94,7 @@ export default class DynamoEntityManager {
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: "UPDATE", initialStatus: JSON.stringify(entity), entity, entityName});
+		this.tracked.set(entity, {action: Action.update, initialStatus: JSON.stringify(entity), entity, entityName});
 	}
 
 	public add<E>(entityName: string, entity: E & IEntity<E>) {
@@ -115,7 +105,7 @@ export default class DynamoEntityManager {
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: "CREATE", entity, entityName});
+		this.tracked.set(entity, {action: Action.create, entity, entityName});
 	}
 
 	public delete<E>(entityName: string, entity: E & IEntity<E>) {
@@ -125,11 +115,11 @@ export default class DynamoEntityManager {
 		}
 		if (
 			this.tracked.has(entity)
-			&& this.tracked.get(entity).action === "CREATE"
+			&& this.tracked.get(entity).action === Action.create
 		) {
 			this.tracked.delete(entity);
 		} else {
-			this.tracked.set(entity, {action: "DELETE", entity, entityName});
+			this.tracked.set(entity, {action: Action.delete, entity, entityName});
 		}
 	}
 
@@ -138,10 +128,22 @@ export default class DynamoEntityManager {
 		this.tracked = new Map();
 	}
 
-	private async createItem<E>(entityName: string, entity: E & IEntity<E>) {
-		const request = {
-			Item: this.tableConfigs.get(entityName).marshal(entity),
-			TableName: this.tableConfigs.get(entityName).tableName,
+	private flushEntity<E>(entityConfig: ITrackedITem<E>, tableConfig: IRepositoryTableConfig<E>) {
+		switch (entityConfig.action) {
+			case Action.update:
+				return this.updateItem(entityConfig.entity, tableConfig);
+			case Action.delete:
+				return this.deleteItem(entityConfig.entity, tableConfig);
+			case Action.create:
+				return this.createItem(entityConfig.entity, tableConfig);
+		}
+	}
+
+	private async createItem<E>(entity: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
+		const request: DocumentClient.PutItemInput = {
+			ConditionExpression: "",
+			Item: tableConfig.marshal(entity),
+			TableName: tableConfig.tableName,
 		};
 		try {
 			await this.asyncPut(request);
@@ -152,13 +154,13 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async updateItem<E>(entityName: string, entity: E & IEntity<E>) {
+	private async updateItem<E>(entity: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
 		const request = {
-			Item: this.tableConfigs.get(entityName).marshal(entity),
-			TableName: this.tableConfigs.get(entityName).tableName,
+			Item: tableConfig.marshal(entity),
+			TableName: tableConfig.tableName,
 		};
 		try {
 			await this.asyncPut(request);
@@ -173,12 +175,11 @@ export default class DynamoEntityManager {
 		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem<E>(entityName: string, item: E & IEntity<E>) {
-		const tableConfig = this.tableConfigs.get(entityName);
+	private async deleteItem<E>(item: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
 		try {
 			return this.asyncDelete({
 				Key: getEntityKey(tableConfig.keySchema, tableConfig.marshal(item)),
-				TableName: this.tableConfigs.get(entityName).tableName,
+				TableName: tableConfig.tableName,
 			});
 		} catch (err) {
 			this.eventEmitter.emit(eventType.errorDeleting, err, item);
