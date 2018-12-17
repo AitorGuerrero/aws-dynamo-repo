@@ -8,19 +8,18 @@ import {IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.cla
 export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 
 	constructor(
-		private entityName: string,
-		tableConfig: IRepositoryTableConfig<Entity>,
+		private tableConfig: IRepositoryTableConfig<Entity>,
 		documentClient: DynamoDB.DocumentClient,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
 	) {
 		super(documentClient, tableConfig, eventEmitter);
-		this.entityManager.addTableConfig(entityName, tableConfig);
+		this.entityManager.addTableConfig(tableConfig);
 	}
 
 	public async get(key: DynamoDB.DocumentClient.Key) {
 		const entity = await super.get(key);
-		this.entityManager.track(this.entityName, entity);
+		this.entityManager.track(this.tableConfig.tableName, entity);
 
 		return entity;
 	}
@@ -28,7 +27,7 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 	public async getList(keys: DynamoDB.DocumentClient.Key[]) {
 		const list = await super.getList(keys);
 		for (const entity of list.values()) {
-			this.entityManager.track(this.entityName, entity);
+			this.entityManager.track(this.tableConfig.tableName, entity);
 		}
 
 		return list;
@@ -38,7 +37,7 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 		const generator = super.search(input);
 		const managedGenerator = (async () => {
 			const entity = await generator();
-			this.entityManager.track(this.entityName, entity);
+			this.entityManager.track(this.tableConfig.tableName, entity);
 
 			return entity;
 		}) as IGenerator<Entity>;
@@ -48,11 +47,11 @@ export class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 	}
 
 	public delete(e: Entity) {
-		this.entityManager.delete(this.entityName, e);
+		this.entityManager.delete(this.tableConfig.tableName, e);
 	}
 
 	public async persist(e: Entity) {
 		await super.addToCache(e);
-		this.entityManager.add(this.entityName, e);
+		this.entityManager.add(this.tableConfig.tableName, e);
 	}
 }

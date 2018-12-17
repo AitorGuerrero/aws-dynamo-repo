@@ -2,7 +2,6 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import getEntityKey from "./get-entity-key";
-import {IRepositoryTableConfig} from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -24,15 +23,21 @@ interface ITrackedITem<Entity> {
 	action: Action;
 	initialStatus?: unknown;
 	entity: Entity;
-	entityName: string;
+	tableConfig: ITableConfig<Entity>;
 }
 
 type TrackedTable<E> = Map<any, ITrackedITem<E>>;
 
+interface ITableConfig<E> {
+	tableName: string;
+	keySchema: DocumentClient.KeySchema;
+	marshal?: (e: E) => DocumentClient.AttributeMap;
+}
+
 export default class DynamoEntityManager {
 
-	private readonly tableConfigs: Map<string, IRepositoryTableConfig<any>>;
-	private tracked: TrackedTable<unknown>;
+	private readonly tableConfigs: {[tableName: string]: ITableConfig<unknown>} = {};
+	private tracked: TrackedTable<unknown> = new Map();
 	private flushing = false;
 
 	constructor(
@@ -40,13 +45,12 @@ export default class DynamoEntityManager {
 		public readonly eventEmitter: EventEmitter,
 	) {
 		this.tracked = new Map();
-		this.tableConfigs = new Map();
 	}
 
-	public addTableConfig(entityName: string, config: IRepositoryTableConfig<any>) {
-		this.tableConfigs.set(entityName, Object.assign({
+	public addTableConfig(config: ITableConfig<unknown>) {
+		this.tableConfigs[config.tableName] = Object.assign({
 			marshal: (entity: any) => JSON.parse(JSON.stringify(entity)) as DocumentClient.AttributeMap,
-		}, config));
+		}, config);
 	}
 
 	public async flush() {
@@ -54,7 +58,7 @@ export default class DynamoEntityManager {
 		this.flushing = true;
 		const processed: Array<Promise<any>> = [];
 		for (const entityConfig of this.tracked.values()) {
-			processed.push(this.flushEntity(entityConfig, this.tableConfigs.get(entityConfig.entityName)));
+			processed.push(this.flushEntity(entityConfig, entityConfig.tableConfig));
 		}
 		try {
 			await Promise.all(processed);
@@ -86,7 +90,7 @@ export default class DynamoEntityManager {
 		});
 	}
 
-	public track<E>(entityName: string, entity: E & IEntity<E>) {
+	public track<E>(tableName: string, entity: E & IEntity<E>) {
 		this.guardFlushing();
 		if (entity === undefined) {
 			return;
@@ -94,10 +98,15 @@ export default class DynamoEntityManager {
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: Action.update, initialStatus: JSON.stringify(entity), entity, entityName});
+		this.tracked.set(entity, {
+			action: Action.update,
+			entity,
+			initialStatus: JSON.stringify(entity),
+			tableConfig: this.tableConfigs[tableName],
+		});
 	}
 
-	public add<E>(entityName: string, entity: E & IEntity<E>) {
+	public add<E>(tableName: string, entity: E & IEntity<E>) {
 		this.guardFlushing();
 		if (entity === undefined) {
 			return;
@@ -105,10 +114,10 @@ export default class DynamoEntityManager {
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: Action.create, entity, entityName});
+		this.tracked.set(entity, {action: Action.create, entity, tableConfig: this.tableConfigs[tableName]});
 	}
 
-	public delete<E>(entityName: string, entity: E & IEntity<E>) {
+	public delete<E>(tableName: string, entity: E & IEntity<E>) {
 		this.guardFlushing();
 		if (entity === undefined) {
 			return;
@@ -119,7 +128,7 @@ export default class DynamoEntityManager {
 		) {
 			this.tracked.delete(entity);
 		} else {
-			this.tracked.set(entity, {action: Action.delete, entity, entityName});
+			this.tracked.set(entity, {action: Action.delete, entity, tableConfig: this.tableConfigs[tableName]});
 		}
 	}
 
@@ -128,7 +137,7 @@ export default class DynamoEntityManager {
 		this.tracked = new Map();
 	}
 
-	private flushEntity<E>(entityConfig: ITrackedITem<E>, tableConfig: IRepositoryTableConfig<E>) {
+	private flushEntity<E>(entityConfig: ITrackedITem<E>, tableConfig: ITableConfig<E>) {
 		switch (entityConfig.action) {
 			case Action.update:
 				return this.updateItem(entityConfig.entity, tableConfig);
@@ -139,7 +148,7 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async createItem<E>(entity: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
+	private async createItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>) {
 		const request: DocumentClient.PutItemInput = {
 			ConditionExpression: "",
 			Item: tableConfig.marshal(entity),
@@ -154,7 +163,7 @@ export default class DynamoEntityManager {
 		}
 	}
 
-	private async updateItem<E>(entity: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
+	private async updateItem<E>(entity: E & IEntity<E>, tableConfig: ITableConfig<E>) {
 		if (!this.entityHasChanged(entity)) {
 			return;
 		}
@@ -175,7 +184,7 @@ export default class DynamoEntityManager {
 		return JSON.stringify(entity) !== this.tracked.get(entity).initialStatus;
 	}
 
-	private async deleteItem<E>(item: E & IEntity<E>, tableConfig: IRepositoryTableConfig<E>) {
+	private async deleteItem<E>(item: E & IEntity<E>, tableConfig: ITableConfig<E>) {
 		try {
 			return this.asyncDelete({
 				Key: getEntityKey(tableConfig.keySchema, tableConfig.marshal(item)),

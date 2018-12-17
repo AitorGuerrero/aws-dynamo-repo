@@ -33,7 +33,6 @@ describe("Having a entity manager", () => {
 	}
 
 	const tableName = "tableName";
-	const entityName = "entityName";
 	const entityId = "entityId";
 
 	let documentClient: FakeDocumentClient;
@@ -47,7 +46,6 @@ describe("Having a entity manager", () => {
 			new EventEmitter(),
 		);
 		repository = new RepositoryManaged(
-			entityName,
 			{
 				keySchema,
 				marshal,
@@ -129,7 +127,7 @@ describe("Having a entity manager", () => {
 
 		describe("and deleting a entity", () => {
 			it("should remove it from collection", async () => {
-				entityManager.delete(entityName, entity);
+				entityManager.delete(tableName, entity);
 				await entityManager.flush();
 				expect(await documentClient.getByKey(tableName, {id: entityId})).to.be.undefined;
 			});
@@ -141,7 +139,7 @@ describe("Having a entity manager", () => {
 		let entity: Entity;
 		beforeEach(() => {
 			entity = new Entity(newId);
-			entityManager.add(entityName, entity);
+			entityManager.add(tableName, entity);
 		});
 		describe("and flushed", () => {
 			beforeEach(() => entityManager.flush());
@@ -154,7 +152,7 @@ describe("Having a entity manager", () => {
 				expect(item).not.to.be.instanceOf(Entity);
 			});
 			describe("and deleting it", () => {
-				beforeEach(() => entityManager.delete(entityName, entity));
+				beforeEach(() => entityManager.delete(tableName, entity));
 				describe("and flushed", () => {
 					beforeEach(() => entityManager.flush());
 					it("Should not be added to the collection", async () => {
