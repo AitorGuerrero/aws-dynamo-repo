@@ -21,6 +21,7 @@ interface ITrackedITem<Entity> {
 	initialStatus?: unknown;
 	entity: Entity;
 	tableConfig: ITableConfig<Entity>;
+	version?: number;
 }
 
 type TrackedTable<E> = Map<any, ITrackedITem<E>>;
@@ -31,12 +32,13 @@ interface ITableConfig<E> {
 		hash: string;
 		range?: string;
 	};
+	versionKey?: string;
 	marshal?: (e: E) => DocumentClient.AttributeMap;
 }
 
 export default class DynamoEntityManager {
 
-	private static buildKeyConditionExpression(entity: any, tableConf: ITableConfig<unknown>) {
+	private static buildConditionExpression(entity: any, tableConf: ITableConfig<unknown>) {
 		const result: any = {
 			ConditionExpression: "#keyHash<>::keyHash",
 			ExpressionAttributeNames: {"#keyHash": tableConf.keySchema.hash},
@@ -49,6 +51,20 @@ export default class DynamoEntityManager {
 		}
 
 		return result;
+	}
+
+	private static addVersionConditionExpression<I>(
+		input: I & (DocumentClient.Put | DocumentClient.Delete),
+		entity: any,
+		tableConf: ITableConfig<unknown>,
+	) {
+		if (tableConf.versionKey !== undefined) {
+			input.ConditionExpression = "#version=:version";
+			input.ExpressionAttributeNames["#version"] = tableConf.versionKey;
+			input.ExpressionAttributeValues[":version"] = entity[tableConf.versionKey];
+		}
+
+		return input;
 	}
 
 	private static getEntityKey<Entity>(entity: Entity, tableConfig: ITableConfig<unknown>) {
@@ -65,7 +81,7 @@ export default class DynamoEntityManager {
 		const marshaledEntity = tableConfig.marshal(entity);
 		return {
 			Put: Object.assign(
-				DynamoEntityManager.buildKeyConditionExpression(marshaledEntity, tableConfig),
+				DynamoEntityManager.buildConditionExpression(marshaledEntity, tableConfig),
 				{
 					Item: marshaledEntity,
 					TableName: tableConfig.tableName,
@@ -76,10 +92,10 @@ export default class DynamoEntityManager {
 
 	private static deleteItem<E>(item: E & IEntity<E>, tableConfig: ITableConfig<E>): DynamoDB.TransactWriteItem {
 		return {
-			Delete: {
+			Delete: DynamoEntityManager.addVersionConditionExpression({
 				Key: DynamoEntityManager.getEntityKey(item, tableConfig),
 				TableName: tableConfig.tableName,
-			},
+			}, item, tableConfig),
 		};
 	}
 
@@ -139,7 +155,7 @@ export default class DynamoEntityManager {
 		});
 	}
 
-	public track<E>(tableName: string, entity: E & IEntity<E>) {
+	public track<E>(tableName: string, entity: E & IEntity<E>, version?: number) {
 		this.guardFlushing();
 		if (entity === undefined) {
 			return;
@@ -152,6 +168,7 @@ export default class DynamoEntityManager {
 			entity,
 			initialStatus: JSON.stringify(entity),
 			tableConfig: this.tableConfigs[tableName],
+			version,
 		});
 	}
 
@@ -163,7 +180,12 @@ export default class DynamoEntityManager {
 		if (this.tracked.has(entity)) {
 			return;
 		}
-		this.tracked.set(entity, {action: Action.create, entity, tableConfig: this.tableConfigs[tableName]});
+		this.tracked.set(entity, {
+			action: Action.create,
+			entity,
+			tableConfig: this.tableConfigs[tableName],
+			version: 0,
+		});
 	}
 
 	public delete<E>(tableName: string, entity: E & IEntity<E>) {
@@ -203,10 +225,10 @@ export default class DynamoEntityManager {
 		}
 
 		return {
-			Put: {
-				Item: tableConfig.marshal(entity),
+			Put: DynamoEntityManager.addVersionConditionExpression({
+				Item: this.addVersionToUpdateItem(tableConfig.marshal(entity), entity, tableConfig),
 				TableName: tableConfig.tableName,
-			},
+			}, entity, tableConfig),
 		};
 	}
 
@@ -224,5 +246,13 @@ export default class DynamoEntityManager {
 		if (this.flushing) {
 			throw new Error("Dynamo entity manager currently flushing");
 		}
+	}
+
+	private addVersionToUpdateItem<Entity>(item: any, entity: Entity, tableConfig: ITableConfig<unknown>) {
+		if (tableConfig.versionKey !== undefined) {
+			item[tableConfig.versionKey] = this.tracked.get(entity).version + 1;
+		}
+
+		return item;
 	}
 }
