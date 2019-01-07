@@ -4,3 +4,4 @@ src/**/*.js
 index.js
 index.d.ts
 src/**/*.d.ts
+.nyc_output

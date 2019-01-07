@@ -1,10 +1,9 @@
-import {DynamoDB} from "aws-sdk";
+import {DocumentClient} from "aws-sdk/clients/dynamodb";
 import {expect} from "chai";
 import {beforeEach, describe, it} from "mocha";
-import FakeDocumentClient from "./fake-document-client.class";
-import {RepositoryCached} from "./repository.cached.class";
-
-import DocumentClient = DynamoDB.DocumentClient;
+import {PoweredDynamo} from "powered-dynamo";
+import FakeDocumentClient from "../fake-document-client.class";
+import RepositoryCached from "./repository.class";
 
 describe("Having a repository with cache", () => {
 
@@ -36,7 +35,7 @@ describe("Having a repository with cache", () => {
 	beforeEach(() => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		repository = new RepositoryCached(
-			documentClient as any as DocumentClient,
+			new PoweredDynamo(documentClient as any as DocumentClient),
 			{
 				keySchema,
 				marshal,
@@ -126,13 +125,13 @@ describe("Having a repository with cache", () => {
 
 		describe("when searching for entities", () => {
 			it("should return the entities", async () => {
-				const getNextEntity = repository.search({});
-				const entity = await getNextEntity();
-				expect(entity.id).eq(entityId);
-				expect(entity.marshaled).eq(false);
-				expect((await getNextEntity()).id).to.be.eq(secondEntityId);
-				expect((await getNextEntity()).id).to.be.eq(thirdEntityId);
-				expect(await getNextEntity()).to.be.undefined;
+				const getNextEntity = repository.scan({});
+				const entities = await getNextEntity.toArray();
+				expect(entities.length).eq(3);
+				expect(entities[0].id).eq(entityId);
+				expect(entities[0].marshaled).eq(false);
+				expect(entities[1].id).to.be.eq(secondEntityId);
+				expect(entities[2].id).to.be.eq(thirdEntityId);
 			});
 		});
 

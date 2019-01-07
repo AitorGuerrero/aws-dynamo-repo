@@ -1,14 +1,15 @@
 import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
+import {DynamoEntityManager} from "dynamo-entity-manager/src/entity-manager.class";
 import {EventEmitter} from "events";
 import {beforeEach, describe, it} from "mocha";
-import DynamoEntityManager from "./entity-manager/entity-manager.class";
-import FakeDocumentClient from "./fake-document-client.class";
-import {RepositoryManaged} from "./repository.managed.class";
+import {PoweredDynamo} from "powered-dynamo";
+import FakeDocumentClient from "../fake-document-client.class";
+import RepositoryManaged from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-describe("Having a entity manager", () => {
+describe("Having a managed repository", () => {
 
 	const keySchema = {hash: "id"};
 
@@ -28,10 +29,6 @@ describe("Having a entity manager", () => {
 		return e;
 	}
 
-	function marshal(e: Entity) {
-		return JSON.parse(JSON.stringify(e));
-	}
-
 	const tableName = "tableName";
 	const entityId = "entityId";
 
@@ -42,17 +39,20 @@ describe("Having a entity manager", () => {
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		entityManager = new DynamoEntityManager(
-			documentClient as any as DocumentClient,
+			new PoweredDynamo(documentClient as any as DocumentClient),
+			[{
+				keySchema: {hash: "id", range: undefined},
+				tableName,
+			}],
 			new EventEmitter(),
 		);
 		repository = new RepositoryManaged(
 			{
 				keySchema: {hash: "id"},
-				marshal,
 				tableName,
 				unMarshal,
 			},
-			documentClient as any as DocumentClient,
+			new PoweredDynamo(documentClient as any as DocumentClient),
 			entityManager,
 		);
 	});
@@ -112,7 +112,6 @@ describe("Having a entity manager", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {
 					const item = await documentClient.getByKey<Entity>(tableName, {id: entityId});
-					console.log(JSON.stringify(item));
 					expect(item.nested.nestedToDelete).to.be.undefined;
 				});
 			});
@@ -139,7 +138,7 @@ describe("Having a entity manager", () => {
 		let entity: Entity;
 		beforeEach(() => {
 			entity = new Entity(newId);
-			entityManager.add(tableName, entity);
+			entityManager.trackNew(tableName, entity);
 		});
 		describe("and flushed", () => {
 			beforeEach(() => entityManager.flush());

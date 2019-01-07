@@ -1,19 +1,39 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
+import {PoweredDynamo} from "powered-dynamo";
+import IGenerator from "../generator.interface";
+import IQueryInput from "../query-input.interface";
+import IRepositoryTableConfig from "../repository-table-config.interface";
 import DocumentClient = DynamoDB.DocumentClient;
-import generatorToArray from "./generator-to-array";
-import {DynamoDBRepository, IGenerator, IRepositoryTableConfig, ISearchInput} from "./repository.class";
+import DynamoDBRepository from "../repository.class";
+import IScanInput from "../scan-query.interface";
+import CachedRepositoryGenerator from "./generator.class";
 
-export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
+export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableConfig<Entity> {
+	marshal?: (e: Entity) => DocumentClient.AttributeMap;
+}
+
+export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
+
+	protected static getEntityKey<Entity>(entity: Entity, tableConfig: ICachedRepositoryTableConfig<unknown>) {
+		const marshaledEntity = tableConfig.marshal(entity);
+		const key: DocumentClient.Key = {};
+		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
+		if (tableConfig.keySchema.range) {
+			key[tableConfig.keySchema.range] = marshaledEntity[tableConfig.keySchema.range];
+		}
+
+		return key;
+	}
 
 	private readonly cache: Map<any, Map<any, Promise<Entity>>>;
 
 	constructor(
-		dc: DocumentClient,
-		config: IRepositoryTableConfig<Entity>,
+		protected dynamo: PoweredDynamo,
+		config: ICachedRepositoryTableConfig<Entity>,
 		eventEmitter?: EventEmitter,
 	) {
-		super(dc, config, eventEmitter);
+		super(dynamo, config, eventEmitter);
 		this.cache = new Map();
 	}
 
@@ -37,25 +57,8 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 		return keysMap;
 	}
 
-	public search(input: ISearchInput) {
-		const getNextEntity = super.search(input);
-		const generator = (async () => {
-			const entity = await getNextEntity();
-			if (entity === undefined) {
-				return;
-			}
-			const key = this.getEntityKey(entity);
-			await this.addToCacheByKey(key, entity);
-
-			return this.getFromCache(key);
-		}) as IGenerator<Entity>;
-		generator.toArray = generatorToArray;
-
-		return generator;
-	}
-
 	public getEntityKey(e: Entity) {
-		return DynamoDBRepository.getEntityKey<Entity>(e, this.config);
+		return RepositoryCached.getEntityKey(e, this.config);
 	}
 
 	public async addToCache(e: Entity) {
@@ -64,6 +67,20 @@ export class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
 
 	public clear() {
 		this.cache.clear();
+	}
+
+	public scan(input: IScanInput): IGenerator<Entity> {
+		return new CachedRepositoryGenerator<Entity>(
+			super.scan(input),
+			this,
+		);
+	}
+
+	public query(input: IQueryInput): IGenerator<Entity> {
+		return new CachedRepositoryGenerator<Entity>(
+			super.query(input),
+			this,
+		);
 	}
 
 	private filterNotCachedKeys(keys: DocumentClient.Key[]) {
