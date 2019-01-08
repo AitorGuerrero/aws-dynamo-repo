@@ -1,6 +1,7 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
+import IEntityResponse from "./entity-response.interface";
 import IGenerator from "./generator.interface";
 import RepositoryQueryGenerator from "./query-generator.class";
 import IQueryInput from "./query-input.interface";
@@ -28,21 +29,28 @@ export default class DynamoDBRepository<Entity> {
 		this.eventEmitter = eventEmitter || new EventEmitter();
 	}
 
-	public async get(Key: DocumentClient.Key) {
+	public async get(Key: DocumentClient.Key): Promise<IEntityResponse<Entity>> {
 		const input: DocumentClient.GetItemInput = {
 			Key,
 			TableName: this.config.tableName,
 		};
 		const response = await this.dc.get(input);
 
-		return response.Item === undefined ? undefined : this.config.unMarshal(response.Item);
+		return {
+			entity: response.Item === undefined ? undefined : this.config.unMarshal(response.Item),
+			version: this.config.versionKey ? response.Item[this.config.versionKey] : undefined,
+		};
 	}
 
 	public async getList(keys: DocumentClient.Key[]) {
-		const result = new Map<DocumentClient.Key, Entity>();
+		const result = new Map<DocumentClient.Key, IEntityResponse<Entity>>();
 		const items = await this.dc.getList(this.config.tableName, keys);
 		for (const key of items.keys()) {
-			result.set(key, this.config.unMarshal(items.get(key)));
+			const item = items.get(key);
+			result.set(key, {
+				entity: this.config.unMarshal(item),
+				version: this.config.versionKey ? item[this.config.versionKey] : undefined,
+			});
 		}
 
 		return result;
@@ -54,6 +62,7 @@ export default class DynamoDBRepository<Entity> {
 				TableName: this.config.tableName,
 			}, input)),
 			this.config.unMarshal,
+			this.config.versionKey,
 		);
 	}
 
@@ -63,6 +72,7 @@ export default class DynamoDBRepository<Entity> {
 				TableName: this.config.tableName,
 			}, input)),
 			this.config.unMarshal,
+			this.config.versionKey,
 		);
 	}
 }

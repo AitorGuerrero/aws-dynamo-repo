@@ -13,5 +13,6 @@ export default interface IRepositoryTableConfig<Entity> {
 			ProjectionType: "KEYS_ONLY" | "INCLUDE" | "ALL";
 		};
 	};
+	versionKey?: string;
 	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
 }

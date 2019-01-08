@@ -70,7 +70,7 @@ describe("Having a managed repository", () => {
 				updated: false,
 			};
 			await documentClient.set(tableName, marshaledEntity);
-			entity = await repository.get({id: entityId});
+			entity = (await repository.get({id: entityId})).entity;
 		});
 
 		describe("and updating a nested attribute", () => {

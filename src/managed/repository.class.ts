@@ -21,16 +21,16 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 	}
 
 	public async get(key: DynamoDB.DocumentClient.Key) {
-		const entity = await super.get(key);
-		this.entityManager.track(this.tableConfig.tableName, entity);
+		const result = await super.get(key);
+		this.entityManager.track(this.tableConfig.tableName, result.entity, result.version);
 
-		return entity;
+		return result;
 	}
 
 	public async getList(keys: DynamoDB.DocumentClient.Key[]) {
 		const list = await super.getList(keys);
 		for (const entity of list.values()) {
-			this.entityManager.track(this.tableConfig.tableName, entity);
+			this.entityManager.track(this.tableConfig.tableName, entity.entity, entity.version);
 		}
 
 		return list;
@@ -40,9 +40,14 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 		this.entityManager.delete(this.tableConfig.tableName, e);
 	}
 
-	public async persist(e: Entity) {
+	public async trackNew(e: Entity) {
 		await super.addToCache(e);
 		this.entityManager.trackNew(this.tableConfig.tableName, e);
+	}
+
+	public async track(e: Entity, version?: number) {
+		await super.addToCache(e);
+		this.entityManager.track(this.tableConfig.tableName, e, version);
 	}
 
 	public scan(input: IScanInput): IGenerator<Entity> {

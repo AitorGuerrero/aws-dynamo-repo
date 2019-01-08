@@ -2,6 +2,7 @@ import {DocumentClient} from "aws-sdk/clients/dynamodb";
 import {expect} from "chai";
 import {beforeEach, describe, it} from "mocha";
 import {PoweredDynamo} from "powered-dynamo";
+import IEntityResponse from "../entity-response.interface";
 import FakeDocumentClient from "../fake-document-client.class";
 import RepositoryCached from "./repository.class";
 
@@ -48,20 +49,20 @@ describe("Having a repository with cache", () => {
 	describe("when asking for not existent entity", () => {
 
 		const notExistentEntityId = "notExistentEntity";
-		let returnedEntity: IEntity;
+		let returnedEntity: IEntityResponse<any>;
 
 		beforeEach(async () => {
 			returnedEntity = await repository.get({id: notExistentEntityId});
 		});
 		it("should not return it", async () => {
-			expect(returnedEntity).to.be.undefined;
+			expect(returnedEntity.entity).to.be.undefined;
 		});
 
 		describe("and asked for the same entity a second time", () => {
 			it("Should not ask to the document client", async () => {
 				documentClient.failOnCall();
 				const entity = await repository.get({id: notExistentEntityId});
-				expect(entity).to.be.undefined;
+				expect(entity.entity).to.be.undefined;
 			});
 		});
 	});
@@ -70,15 +71,15 @@ describe("Having a repository with cache", () => {
 
 		const entityId = "entityId";
 
-		beforeEach(() => repository.addToCache({id: entityId, marshaled: false}));
+		beforeEach(() => repository.addToCache({entity: {id: entityId, marshaled: false}}));
 		describe("and asking again for the entity", () => {
-			let newReturnedEntity: IEntity;
+			let newReturnedEntity: IEntityResponse<any>;
 			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));
 			it(
 				"should return correct entity",
 				async () => {
 					documentClient.flush();
-					expect(newReturnedEntity.id).to.be.eq(entityId);
+					expect(newReturnedEntity.entity.id).to.be.eq(entityId);
 				},
 			);
 		});
@@ -102,13 +103,13 @@ describe("Having a repository with cache", () => {
 
 		describe("when asking for the entity", () => {
 
-			let returnedEntity: IEntity;
+			let returnedEntity: IEntityResponse<any>;
 
 			beforeEach(async () => returnedEntity = await repository.get(entityKey));
 
 			it("should return the unmarshaled entity", async () => {
-				expect(returnedEntity.id).to.be.eq(entityId);
-				expect(returnedEntity.marshaled).to.be.eq(false);
+				expect(returnedEntity.entity.id).to.be.eq(entityId);
+				expect(returnedEntity.entity.marshaled).to.be.eq(false);
 			});
 		});
 
@@ -128,10 +129,10 @@ describe("Having a repository with cache", () => {
 				const getNextEntity = repository.scan({});
 				const entities = await getNextEntity.toArray();
 				expect(entities.length).eq(3);
-				expect(entities[0].id).eq(entityId);
-				expect(entities[0].marshaled).eq(false);
-				expect(entities[1].id).to.be.eq(secondEntityId);
-				expect(entities[2].id).to.be.eq(thirdEntityId);
+				expect(entities[0].entity.id).eq(entityId);
+				expect(entities[0].entity.marshaled).eq(false);
+				expect(entities[1].entity.id).to.be.eq(secondEntityId);
+				expect(entities[2].entity.id).to.be.eq(thirdEntityId);
 			});
 		});
 
