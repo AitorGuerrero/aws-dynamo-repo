@@ -62,8 +62,8 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		return RepositoryCached.getEntityKey(e, this.config);
 	}
 
-	public async addToCache(e: IEntityResponse<Entity>) {
-		await this.addToCacheByKey(this.getEntityKey(e.entity), e);
+	public async addToCache(e: Entity) {
+		await this.addToCacheByKey(this.getEntityKey(e), e);
 	}
 
 	public clear() {

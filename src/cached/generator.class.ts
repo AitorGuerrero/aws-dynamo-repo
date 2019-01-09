@@ -12,13 +12,13 @@ export default class CachedRepositoryGenerator<Entity> extends RepositoryGenerat
 	}
 
 	public async next() {
-		const entity = await this.generator.next();
-		if (entity === undefined) {
+		const result = await this.generator.next();
+		if (result === undefined) {
 			return;
 		}
-		await this.repository.addToCache(entity);
+		await this.repository.addToCache(result.entity);
 
-		return entity;
+		return result;
 	}
 
 	public count() {

@@ -71,7 +71,7 @@ describe("Having a repository with cache", () => {
 
 		const entityId = "entityId";
 
-		beforeEach(() => repository.addToCache({entity: {id: entityId, marshaled: false}}));
+		beforeEach(() => repository.addToCache({id: entityId, marshaled: false}));
 		describe("and asking again for the entity", () => {
 			let newReturnedEntity: IEntityResponse<any>;
 			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));
