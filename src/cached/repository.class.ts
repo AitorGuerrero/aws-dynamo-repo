@@ -63,7 +63,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	}
 
 	public async addToCache(e: Entity) {
-		await this.addToCacheByKey(this.getEntityKey(e), e);
+		await this.addToCacheByKey(this.getEntityKey(e), {entity: e});
 	}
 
 	public clear() {
@@ -101,8 +101,8 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		}
 		const response = await super.getList(keys);
 		for (const key of keys) {
-			const entity = response.get(key);
-			await this.addToCacheByKey(key, entity);
+			const entityResponse = response.get(key);
+			await this.addToCacheByKey(key, entityResponse);
 		}
 	}
 
