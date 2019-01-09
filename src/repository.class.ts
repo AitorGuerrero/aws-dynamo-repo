@@ -37,8 +37,8 @@ export default class DynamoDBRepository<Entity> {
 		const response = await this.dc.get(input);
 
 		return {
-			entity: response.Item === undefined ? undefined : this.config.unMarshal(response.Item),
-			version: this.config.versionKey ? response.Item[this.config.versionKey] : undefined,
+			entity: response.Item !== undefined ? this.config.unMarshal(response.Item) : undefined,
+			version: response.Item !== undefined && this.config.versionKey ? response.Item[this.config.versionKey] : undefined,
 		};
 	}
 
