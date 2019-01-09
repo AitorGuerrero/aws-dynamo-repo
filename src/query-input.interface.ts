@@ -4,6 +4,6 @@ import IScanInput from "./scan-query.interface";
 import DocumentClient = DynamoDB.DocumentClient;
 
 export default interface IQueryInput extends IScanInput {
-	IndexName: DocumentClient.IndexName;
+	IndexName?: DocumentClient.IndexName;
 	KeyConditionExpression: DocumentClient.KeyExpression;
 }
