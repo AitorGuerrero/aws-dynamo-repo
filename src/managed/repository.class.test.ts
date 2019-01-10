@@ -169,4 +169,23 @@ describe("Having a managed repository", () => {
 			});
 		});
 	});
+
+	describe("and asking for not existent entity", () => {
+		const notExistingEntityId = "entityId";
+		beforeEach(() => repository.get({id: notExistingEntityId}));
+		describe("and tracking the entity as new", () => {
+			let entity: Entity;
+			beforeEach(async () => {
+				entity = new Entity(notExistingEntityId);
+				await repository.trackNew(entity);
+			});
+			describe("and asking for the new tracked entity", () => {
+				let loadedEntity: Entity;
+				beforeEach(async () => loadedEntity = (await repository.get({id: notExistingEntityId})).entity);
+				it("should return the tracked entity", () => {
+					expect(loadedEntity).to.be.equal(entity);
+				});
+			});
+		});
+	});
 });

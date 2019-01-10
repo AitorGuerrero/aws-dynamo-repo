@@ -120,7 +120,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 
 	private async addToCacheByKey(key: DocumentClient.Key, entityResponse: IEntityResponse<Entity>) {
 		const currentCached = await this.getFromCache(key);
-		if (currentCached !== undefined) {
+		if (currentCached !== undefined && currentCached.entity !== undefined) {
 			if (currentCached.entity !== entityResponse.entity) {
 				this.eventEmitter.emit("cacheKeyInUse", {
 					cachedItem: currentCached.entity,
