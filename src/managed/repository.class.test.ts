@@ -8,6 +8,7 @@ import FakeDocumentClient from "../fake-document-client.class";
 import RepositoryManaged from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
+import IEntityResponse from "../entity-response.interface";
 
 describe("Having a managed repository", () => {
 
@@ -136,9 +137,9 @@ describe("Having a managed repository", () => {
 	describe("when persisting a new entity", () => {
 		const newId = "newId";
 		let entity: Entity;
-		beforeEach(() => {
+		beforeEach(async () => {
 			entity = new Entity(newId);
-			entityManager.trackNew(tableName, entity);
+			await repository.trackNew(entity);
 		});
 		describe("and flushed", () => {
 			beforeEach(() => entityManager.flush());
@@ -157,6 +158,13 @@ describe("Having a managed repository", () => {
 					it("Should not be added to the collection", async () => {
 						expect(await documentClient.getByKey(tableName, {id: entityId})).to.be.undefined;
 					});
+				});
+			});
+			describe("and asking for the entity", () => {
+				let loadedEntity: IEntityResponse<Entity>;
+				beforeEach(async () => loadedEntity = await repository.get({id: entity.id}));
+				it("should return the same entity", () => {
+					expect(loadedEntity.entity).to.be.equal(entity);
 				});
 			});
 		});
