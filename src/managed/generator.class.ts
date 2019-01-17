@@ -12,7 +12,7 @@ export default class ManagedRepositoryGenerator<Entity> extends RepositoryGenera
 
 	public async next() {
 		const response = await this.generator.next();
-		if (response.entity === undefined) {
+		if (response === undefined) {
 			return;
 		}
 		await this.repository.track(response.entity, response.version);
