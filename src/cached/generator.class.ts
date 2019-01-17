@@ -14,7 +14,7 @@ export default class CachedRepositoryGenerator<Entity> extends RepositoryGenerat
 	public async next() {
 		const result = await this.generator.next();
 		if (result === undefined) {
-			return;
+			return {};
 		}
 		await this.repository.addToCache(result.entity);
 
