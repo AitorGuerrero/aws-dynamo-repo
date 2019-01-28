@@ -74,6 +74,17 @@ describe("Having a managed repository", () => {
 			entity = (await repository.get({id: entityId})).entity;
 		});
 
+		describe("and searching for a entity already cached", () => {
+			let firstReturnedEntity: Entity;
+			let entities: Array<IEntityResponse<Entity>>;
+			beforeEach(async () => {
+				firstReturnedEntity = (await repository.get({id: entityId})).entity;
+				entities = await repository.scan({}).toArray();
+			});
+			it("should return a entity", () => expect(entities.length).to.be.eq(1));
+			it("should return the same entity", () => expect(entities[0].entity).to.be.equal(firstReturnedEntity));
+		});
+
 		describe("and updating a nested attribute", () => {
 			beforeEach(async () => entity.nested.nestedUpdated = true);
 			describe("and flushed", () => {

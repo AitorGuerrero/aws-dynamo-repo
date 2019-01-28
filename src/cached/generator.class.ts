@@ -18,7 +18,7 @@ export default class CachedRepositoryGenerator<Entity> extends RepositoryGenerat
 		}
 		await this.repository.addToCache(result.entity);
 
-		return result;
+		return this.repository.get(this.repository.getEntityKey(result.entity));
 	}
 
 	public count() {
