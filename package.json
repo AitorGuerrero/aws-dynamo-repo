@@ -26,13 +26,13 @@
   },
   "homepage": "https://github.com/AitorGuerrero/aws-dynamo-repo#readme",
   "dependencies": {
-    "dynamo-entity-manager": "^1.0.2",
+    "dynamo-entity-manager": "^1.1.0-0",
     "powered-dynamo": "^1.1.1"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.5",
-    "@types/node": "^10.12.19",
+    "@types/node": "^10.12.20",
     "aws-sdk": "^2.395.0",
     "chai": "^4.2.0",
     "mocha": "^5.2.0",
