@@ -3,26 +3,28 @@ import {DynamoEntityManager} from "dynamo-entity-manager/src/entity-manager.clas
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
 import RepositoryCached from "../cached/repository.class";
-import IGenerator from "../generator.interface";
+import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
-import IScanInput from "../scan-query.interface";
+import IScanInput from "../scan-input.interface";
 import ManagedRepositoryGenerator from "./generator.class";
 
 export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
 
+	protected config: IRepositoryTableConfig<Entity>;
+
 	constructor(
-		private tableConfig: IRepositoryTableConfig<Entity>,
+		config: IRepositoryTableConfig<Entity>,
 		dynamo: PoweredDynamo,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
 	) {
-		super(dynamo, tableConfig, eventEmitter);
+		super(dynamo, config, eventEmitter);
 	}
 
 	public async get(key: DynamoDB.DocumentClient.Key) {
 		const result = await super.get(key);
-		this.entityManager.track(this.tableConfig.tableName, result.entity, result.version);
+		this.entityManager.track(this.config.tableName, result, this.versionOf(result));
 
 		return result;
 	}
@@ -30,37 +32,41 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 	public async getList(keys: DynamoDB.DocumentClient.Key[]) {
 		const list = await super.getList(keys);
 		for (const entity of list.values()) {
-			this.entityManager.track(this.tableConfig.tableName, entity.entity, entity.version);
+			this.entityManager.track(this.config.tableName, entity, this.versionOf(entity));
 		}
 
 		return list;
 	}
 
 	public delete(e: Entity) {
-		this.entityManager.delete(this.tableConfig.tableName, e);
+		this.entityManager.delete(this.config.tableName, e);
 	}
 
 	public async trackNew(e: Entity) {
 		await super.addToCache(e);
-		this.entityManager.trackNew(this.tableConfig.tableName, e);
+		this.entityManager.trackNew(this.config.tableName, e);
 	}
 
-	public async track(e: Entity, version?: number) {
+	public async track(e: Entity) {
 		await super.addToCache(e);
-		this.entityManager.track(this.tableConfig.tableName, e, version);
+		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public scan(input: IScanInput): IGenerator<Entity> {
+	public scan(input: IScanInput): IEntityGenerator<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
-			super.scan(input),
 			this,
+			super.scan(input),
+			this.config,
+			(entity, version) => this.registerEntityVersion(entity, version),
 		);
 	}
 
-	public query(input: IQueryInput): IGenerator<Entity> {
+	public query(input: IQueryInput): IEntityGenerator<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
-			super.query(input),
 			this,
+			super.query(input),
+			this.config,
+			(entity, version) => this.registerEntityVersion(entity, version),
 		);
 	}
 }

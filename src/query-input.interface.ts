@@ -1,5 +1,5 @@
 import {DynamoDB} from "aws-sdk";
-import IScanInput from "./scan-query.interface";
+import IScanInput from "./scan-input.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 

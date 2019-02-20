@@ -1,7 +1,5 @@
-import IEntityResponse from "./entity-response.interface";
-
-export default interface IGenerator<Entity> {
-	next(): Promise<IEntityResponse<Entity>>;
+export default interface IEntityGenerator<Entity> {
+	next(): Promise<Entity>;
 	count(): Promise<number>;
-	toArray(): Promise<Array<IEntityResponse<Entity>>>;
+	toArray(): Promise<Entity[]>;
 }

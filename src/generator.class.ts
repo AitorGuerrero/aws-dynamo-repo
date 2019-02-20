@@ -1,18 +1,46 @@
-import IEntityResponse from "./entity-response.interface";
-import IGenerator from "./generator.interface";
+import {DynamoDB} from "aws-sdk";
+import IGenerator from "powered-dynamo/generator.interface";
+import IEntityGenerator from "./generator.interface";
+import IRepositoryTableConfig from "./repository-table-config.interface";
 
-export default abstract class RepositoryGenerator<Entity> implements IGenerator<Entity> {
+export default class EntityGenerator<Entity> implements IEntityGenerator<Entity> {
 
-	public abstract async next(): Promise<IEntityResponse<Entity>>;
-	public abstract async count(): Promise<number>;
+	constructor(
+		protected generator: IGenerator,
+		private tableConfig: IRepositoryTableConfig<Entity>,
+		private registerVersion?: (e: Entity, v: number) => void,
+	) {}
+
+	public async next(): Promise<Entity> {
+		const next = await this.generator.next();
+		if (next === undefined) {
+			return;
+		}
+		const entity = this.tableConfig.unMarshal(next);
+		this.registerVersion(entity, this.versionOfEntity(next));
+
+		return entity;
+	}
+
+	public count() {
+		return this.generator.count();
+	}
 
 	public async toArray() {
-		let e: IEntityResponse<Entity>;
-		const result: Array<IEntityResponse<Entity>> = [];
+		let e: Entity;
+		const result: Entity[] = [];
 		while (e = await this.next()) {
 			result.push(e);
 		}
 
 		return result;
+	}
+
+	private versionOfEntity(item: DynamoDB.DocumentClient.AttributeMap) {
+		if (this.tableConfig.versionKey === undefined) {
+			return undefined;
+		}
+
+		return item[this.tableConfig.versionKey];
 	}
 }

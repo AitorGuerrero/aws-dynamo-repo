@@ -8,7 +8,6 @@ import FakeDocumentClient from "../fake-document-client.class";
 import RepositoryManaged from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
-import IEntityResponse from "../entity-response.interface";
 
 describe("Having a managed repository", () => {
 
@@ -71,18 +70,18 @@ describe("Having a managed repository", () => {
 				updated: false,
 			};
 			await documentClient.set(tableName, marshaledEntity);
-			entity = (await repository.get({id: entityId})).entity;
+			entity = (await repository.get({id: entityId}));
 		});
 
 		describe("and searching for a entity already cached", () => {
 			let firstReturnedEntity: Entity;
-			let entities: Array<IEntityResponse<Entity>>;
+			let entities: Entity[];
 			beforeEach(async () => {
-				firstReturnedEntity = (await repository.get({id: entityId})).entity;
+				firstReturnedEntity = (await repository.get({id: entityId}));
 				entities = await repository.scan({}).toArray();
 			});
 			it("should return a entity", () => expect(entities.length).to.be.eq(1));
-			it("should return the same entity", () => expect(entities[0].entity).to.be.equal(firstReturnedEntity));
+			it("should return the same entity", () => expect(entities[0]).to.be.equal(firstReturnedEntity));
 		});
 
 		describe("and updating a nested attribute", () => {
@@ -172,10 +171,10 @@ describe("Having a managed repository", () => {
 				});
 			});
 			describe("and asking for the entity", () => {
-				let loadedEntity: IEntityResponse<Entity>;
+				let loadedEntity: Entity;
 				beforeEach(async () => loadedEntity = await repository.get({id: entity.id}));
 				it("should return the same entity", () => {
-					expect(loadedEntity.entity).to.be.equal(entity);
+					expect(loadedEntity).to.be.equal(entity);
 				});
 			});
 		});
@@ -192,7 +191,7 @@ describe("Having a managed repository", () => {
 			});
 			describe("and asking for the new tracked entity", () => {
 				let loadedEntity: Entity;
-				beforeEach(async () => loadedEntity = (await repository.get({id: notExistingEntityId})).entity);
+				beforeEach(async () => loadedEntity = (await repository.get({id: notExistingEntityId})));
 				it("should return the tracked entity", () => {
 					expect(loadedEntity).to.be.equal(entity);
 				});

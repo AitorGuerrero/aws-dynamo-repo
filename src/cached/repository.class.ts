@@ -1,13 +1,12 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
-import IEntityResponse from "../entity-response.interface";
-import IGenerator from "../generator.interface";
+import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
 import DocumentClient = DynamoDB.DocumentClient;
 import DynamoDBRepository from "../repository.class";
-import IScanInput from "../scan-query.interface";
+import IScanInput from "../scan-input.interface";
 import CachedRepositoryGenerator from "./generator.class";
 
 export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableConfig<Entity> {
@@ -27,7 +26,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		return key;
 	}
 
-	protected readonly cache: Map<any, Map<any, Promise<IEntityResponse<Entity>>>>;
+	protected readonly cache: Map<any, Map<any, Promise<Entity>>>;
 
 	constructor(
 		protected dynamo: PoweredDynamo,
@@ -38,7 +37,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		this.cache = new Map();
 	}
 
-	public get(key: DocumentClient.Key): Promise<IEntityResponse<Entity>> {
+	public get(key: DocumentClient.Key): Promise<Entity> {
 		if (!this.cache.has(key[this.config.keySchema.hash])) {
 			this.cache.set(key[this.config.keySchema.hash], new Map());
 		}
@@ -49,7 +48,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	}
 
 	public async getList(keys: DocumentClient.Key[]) {
-		const keysMap = new Map<DocumentClient.Key, IEntityResponse<Entity>>();
+		const keysMap = new Map<DocumentClient.Key, Entity>();
 		await this.loadEntities(this.filterNotCachedKeys(keys));
 		for (const key of keys) {
 			keysMap.set(key, await this.getFromCache(key));
@@ -63,24 +62,28 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	}
 
 	public async addToCache(e: Entity) {
-		await this.addToCacheByKey(this.getEntityKey(e), {entity: e});
+		await this.addToCacheByKey(this.getEntityKey(e), e);
 	}
 
 	public clear() {
 		this.cache.clear();
 	}
 
-	public scan(input: IScanInput): IGenerator<Entity> {
+	public scan(input: IScanInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
-			super.scan(input),
 			this,
+			super.scan(input),
+			this.config,
+			(entity, version) => this.registerEntityVersion(entity, version),
 		);
 	}
 
-	public query(input: IQueryInput): IGenerator<Entity> {
+	public query(input: IQueryInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
-			super.query(input),
 			this,
+			super.query(input),
+			this.config,
+			(entity, version) => this.registerEntityVersion(entity, version),
 		);
 	}
 
@@ -118,13 +121,13 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
 	}
 
-	private async addToCacheByKey(key: DocumentClient.Key, entityResponse: IEntityResponse<Entity>) {
+	private async addToCacheByKey(key: DocumentClient.Key, entityResponse: Entity) {
 		const currentCached = await this.getFromCache(key);
-		if (currentCached !== undefined && currentCached.entity !== undefined) {
-			if (currentCached.entity !== entityResponse.entity) {
+		if (currentCached !== undefined && currentCached !== undefined) {
+			if (currentCached !== entityResponse) {
 				this.eventEmitter.emit("cacheKeyInUse", {
-					cachedItem: currentCached.entity,
-					newItem: entityResponse.entity,
+					cachedItem: currentCached,
+					newItem: entityResponse,
 				});
 			}
 			return;
