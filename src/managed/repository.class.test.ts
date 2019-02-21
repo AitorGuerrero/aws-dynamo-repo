@@ -1,6 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {expect} from "chai";
-import {DynamoEntityManager} from "dynamo-entity-manager/src/entity-manager.class";
+import {DynamoEntityManager, ParallelFlusher} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import {beforeEach, describe, it} from "mocha";
 import {PoweredDynamo} from "powered-dynamo";
@@ -39,7 +39,7 @@ describe("Having a managed repository", () => {
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		entityManager = new DynamoEntityManager(
-			new PoweredDynamo(documentClient as any as DocumentClient),
+			new ParallelFlusher(new PoweredDynamo(documentClient as any as DocumentClient)),
 			[{
 				keySchema: {hash: "id", range: undefined},
 				tableName,

@@ -1,5 +1,5 @@
 import {DynamoDB} from "aws-sdk";
-import {DynamoEntityManager} from "dynamo-entity-manager/src/entity-manager.class";
+import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
 import RepositoryCached from "../cached/repository.class";
