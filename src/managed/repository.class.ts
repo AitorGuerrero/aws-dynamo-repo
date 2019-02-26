@@ -2,7 +2,7 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
-import RepositoryCached from "../cached/repository.class";
+import RepositoryCached, {ICachedRepositoryTableConfig} from "../cached/repository.class";
 import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
@@ -14,7 +14,7 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 	protected config: IRepositoryTableConfig<Entity>;
 
 	constructor(
-		config: IRepositoryTableConfig<Entity>,
+		config: ICachedRepositoryTableConfig<Entity>,
 		dynamo: PoweredDynamo,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
