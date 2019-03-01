@@ -7,7 +7,7 @@ export default class EntityGenerator<Entity> implements IEntityGenerator<Entity>
 
 	constructor(
 		protected generator: IGenerator,
-		private tableConfig: IRepositoryTableConfig<Entity>,
+		protected tableConfig: IRepositoryTableConfig<Entity>,
 		private registerVersion?: (e: Entity, v: number) => void,
 	) {}
 
