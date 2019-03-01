@@ -4,10 +4,11 @@ import {PoweredDynamo} from "powered-dynamo";
 import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
-import DocumentClient = DynamoDB.DocumentClient;
 import DynamoDBRepository from "../repository.class";
 import IScanInput from "../scan-input.interface";
 import CachedRepositoryGenerator from "./generator.class";
+
+import DocumentClient = DynamoDB.DocumentClient;
 
 export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableConfig<Entity> {
 	marshal?: (e: Entity) => DocumentClient.AttributeMap;

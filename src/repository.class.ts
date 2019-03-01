@@ -1,8 +1,10 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import {PoweredDynamo} from "powered-dynamo";
+import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
 import IEntityGenerator from "./generator.interface";
+import IncompleteIndexGenerator from "./incomplete-index-generator";
 import IQueryInput from "./query-input.interface";
 import IRepositoryTableConfig from "./repository-table-config.interface";
 import IScanInput from "./scan-input.interface";
@@ -61,22 +63,20 @@ export default class DynamoDBRepository<Entity> {
 	}
 
 	public scan(input: IScanInput): IEntityGenerator<Entity> {
-		return new EntityGenerator<Entity>(
+		return this.buildEntityGenerator(
+			input,
 			this.dc.scan(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
-			this.config,
-			(entity, version) => this.entityVersions.set(entity, version),
 		);
 	}
 
 	public query(input: IQueryInput): IEntityGenerator<Entity> {
-		return new EntityGenerator<Entity>(
+		return this.buildEntityGenerator(
+			input,
 			this.dc.query(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
-			this.config,
-			(entity, version) => this.entityVersions.set(entity, version),
 		);
 	}
 
@@ -86,5 +86,29 @@ export default class DynamoDBRepository<Entity> {
 
 	protected registerEntityVersion(e: Entity, version: number) {
 		this.entityVersions.set(e, version);
+	}
+
+	private buildEntityGenerator(input: IQueryInput | IScanInput, generator: IGenerator) {
+		if (this.requestInputIsOfIncompleteIndex(input)) {
+			return  new IncompleteIndexGenerator<Entity>(
+				this,
+				generator,
+				this.config,
+				(entity, version) => this.entityVersions.set(entity, version),
+			);
+		}
+
+		return new EntityGenerator<Entity>(
+			generator,
+			this.config,
+			(entity, version) => this.entityVersions.set(entity, version),
+		);
+	}
+
+	private requestInputIsOfIncompleteIndex(input: IQueryInput | IScanInput) {
+		return input.IndexName
+			&& this.config.secondaryIndexes
+			&& this.config.secondaryIndexes[input.IndexName]
+			&& this.config.secondaryIndexes[input.IndexName].ProjectionType !== "ALL";
 	}
 }
