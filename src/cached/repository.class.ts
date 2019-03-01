@@ -72,7 +72,9 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	public scan(input: IScanInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			super.scan(input),
+			this.dc.scan(Object.assign({
+				TableName: this.config.tableName,
+			}, input)),
 			this.config,
 			(entity, version) => this.registerEntityVersion(entity, version),
 		);
@@ -81,7 +83,9 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	public query(input: IQueryInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			super.query(input),
+			this.dc.query(Object.assign({
+				TableName: this.config.tableName,
+			}, input)),
 			this.config,
 			(entity, version) => this.registerEntityVersion(entity, version),
 		);
@@ -121,13 +125,13 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
 	}
 
-	private async addToCacheByKey(key: DocumentClient.Key, entityResponse: Entity) {
+	private async addToCacheByKey(key: DocumentClient.Key, entity: Entity) {
 		const currentCached = await this.getFromCache(key);
-		if (currentCached !== undefined && currentCached !== undefined) {
-			if (currentCached !== entityResponse) {
+		if (currentCached !== undefined) {
+			if (currentCached !== entity) {
 				this.eventEmitter.emit("cacheKeyInUse", {
 					cachedItem: currentCached,
-					newItem: entityResponse,
+					newItem: entity,
 				});
 			}
 			return;
@@ -137,6 +141,6 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		}
 		this.cache
 			.get(key[this.config.keySchema.hash])
-			.set(key[this.config.keySchema.range], Promise.resolve(entityResponse));
+			.set(key[this.config.keySchema.range], Promise.resolve(entity));
 	}
 }
