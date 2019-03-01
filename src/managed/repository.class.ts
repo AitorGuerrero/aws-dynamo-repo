@@ -55,22 +55,14 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 	public scan(input: IScanInput): IEntityGenerator<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
-			this.dc.scan(Object.assign({
-				TableName: this.config.tableName,
-			}, input)),
-			this.config,
-			(entity, version) => this.registerEntityVersion(entity, version),
+			super.scan(input),
 		);
 	}
 
 	public query(input: IQueryInput): IEntityGenerator<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
-			this.dc.query(Object.assign({
-				TableName: this.config.tableName,
-			}, input)),
-			this.config,
-			(entity, version) => this.registerEntityVersion(entity, version),
+			super.query(input),
 		);
 	}
 }

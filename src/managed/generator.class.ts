@@ -1,21 +1,15 @@
-import IGenerator from "powered-dynamo/generator.interface";
-import CachedEntityGenerator from "../cached/generator.class";
-import IRepositoryTableConfig from "../repository-table-config.interface";
+import IEntityGenerator from "../generator.interface";
 import RepositoryManaged from "./repository.class";
 
-export default class ManagedRepositoryGenerator<Entity> extends CachedEntityGenerator<Entity> {
+export default class ManagedRepositoryGenerator<Entity> implements IEntityGenerator<Entity> {
 
 	constructor(
 		protected repository: RepositoryManaged<Entity>,
-		generator: IGenerator,
-		tableConfig: IRepositoryTableConfig<Entity>,
-		registerVersion: (e: Entity, v: number) => void,
-	) {
-		super(repository, generator, tableConfig, registerVersion);
-	}
+		private generator: IEntityGenerator<Entity>,
+	) {}
 
 	public async next() {
-		const response = await super.next();
+		const response = await this.generator.next();
 		if (response === undefined) {
 			return;
 		}
@@ -26,5 +20,14 @@ export default class ManagedRepositoryGenerator<Entity> extends CachedEntityGene
 
 	public count() {
 		return this.generator.count();
+	}
+
+	public async toArray(): Promise<Entity[]> {
+		const entities = await this.generator.toArray();
+		for (const entity of entities) {
+			await this.repository.track(entity);
+		}
+
+		return entities;
 	}
 }

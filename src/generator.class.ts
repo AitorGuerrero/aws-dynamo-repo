@@ -17,7 +17,9 @@ export default class EntityGenerator<Entity> implements IEntityGenerator<Entity>
 			return;
 		}
 		const entity = this.tableConfig.unMarshal(next);
-		this.registerVersion(entity, this.versionOfEntity(next));
+		if (this.tableConfig.versionKey) {
+			this.registerVersion(entity, this.versionOfEntity(next));
+		}
 
 		return entity;
 	}

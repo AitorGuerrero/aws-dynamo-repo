@@ -94,7 +94,7 @@ export default class DynamoDBRepository<Entity> {
 				this,
 				generator,
 				this.config,
-				(entity, version) => this.entityVersions.set(entity, version),
+				(entity, version) => this.registerEntityVersion(entity, version),
 			);
 		}
 

@@ -73,22 +73,14 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	public scan(input: IScanInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			this.dc.scan(Object.assign({
-				TableName: this.config.tableName,
-			}, input)),
-			this.config,
-			(entity, version) => this.registerEntityVersion(entity, version),
+			super.scan(input),
 		);
 	}
 
 	public query(input: IQueryInput): IEntityGenerator<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			this.dc.query(Object.assign({
-				TableName: this.config.tableName,
-			}, input)),
-			this.config,
-			(entity, version) => this.registerEntityVersion(entity, version),
+			super.query(input),
 		);
 	}
 
