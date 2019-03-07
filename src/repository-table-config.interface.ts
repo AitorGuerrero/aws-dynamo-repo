@@ -2,6 +2,10 @@ import {DynamoDB} from "aws-sdk";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
+export enum ProjectionType {
+	keysOnly = "KEYS_ONLY", include = "INCLUDE", all = "ALL",
+}
+
 export default interface IRepositoryTableConfig<Entity> {
 	tableName: string;
 	keySchema: {
@@ -10,7 +14,7 @@ export default interface IRepositoryTableConfig<Entity> {
 	};
 	secondaryIndexes?: {
 		[indexName: string]: {
-			ProjectionType: "KEYS_ONLY" | "INCLUDE" | "ALL";
+			ProjectionType: ProjectionType;
 		};
 	};
 	versionKey?: string;

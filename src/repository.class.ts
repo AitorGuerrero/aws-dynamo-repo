@@ -6,7 +6,7 @@ import EntityGenerator from "./generator.class";
 import IEntityGenerator from "./generator.interface";
 import IncompleteIndexGenerator from "./incomplete-index-generator";
 import IQueryInput from "./query-input.interface";
-import IRepositoryTableConfig from "./repository-table-config.interface";
+import IRepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
 import IScanInput from "./scan-input.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
@@ -109,6 +109,6 @@ export default class DynamoDBRepository<Entity> {
 		return input.IndexName
 			&& this.config.secondaryIndexes
 			&& this.config.secondaryIndexes[input.IndexName]
-			&& this.config.secondaryIndexes[input.IndexName].ProjectionType !== "ALL";
+			&& this.config.secondaryIndexes[input.IndexName].ProjectionType !== ProjectionType.all;
 	}
 }
