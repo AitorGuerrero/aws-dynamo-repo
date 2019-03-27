@@ -24,9 +24,10 @@ export default class CachedRepositoryGenerator<Entity> implements IEntityGenerat
 	}
 
 	public async toArray(): Promise<Entity[]> {
-		const entities = await this.generator.toArray();
-		for (const entity of entities) {
-			await this.repository.addToCache(entity);
+		const entities: Entity[] = [];
+		let entity: Entity;
+		while (entity = await this.next()) {
+			entities.push(entity);
 		}
 
 		return entities;

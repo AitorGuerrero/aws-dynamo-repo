@@ -23,9 +23,10 @@ export default class ManagedRepositoryGenerator<Entity> implements IEntityGenera
 	}
 
 	public async toArray(): Promise<Entity[]> {
-		const entities = await this.generator.toArray();
-		for (const entity of entities) {
-			await this.repository.track(entity);
+		const entities: Entity[] = [];
+		let entity: Entity;
+		while (entity = await this.next()) {
+			entities.push(entity);
 		}
 
 		return entities;
