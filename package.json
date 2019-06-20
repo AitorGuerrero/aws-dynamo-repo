@@ -8,7 +8,8 @@
     "build": "tsc",
     "pretest": "npm run build",
     "test": "mocha src/**/*.test.js",
-    "preversion": "npm install && npm run build"
+    "preversion": "npm install && npm run build",
+    "postpublish": "git push"
   },
   "repository": {
     "type": "git",
@@ -27,17 +28,17 @@
   "homepage": "https://github.com/AitorGuerrero/aws-dynamo-repo#readme",
   "dependencies": {
     "dynamo-entity-manager": "^2.1.4",
-    "powered-dynamo": "^1.2.4"
+    "powered-dynamo": "^1.5.3"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",
-    "@types/mocha": "^5.2.6",
-    "@types/node": "^11.12.0",
-    "aws-sdk": "^2.429.0",
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^12.0.8",
+    "aws-sdk": "^2.478.0",
     "chai": "^4.2.0",
-    "mocha": "^6.0.2",
-    "nyc": "^13.3.0",
-    "tslint": "^5.14.0",
-    "typescript": "^3.3.4000"
+    "mocha": "^6.1.4",
+    "nyc": "^14.1.1",
+    "tslint": "^5.17.0",
+    "typescript": "^3.5.2"
   }
 }
