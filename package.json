@@ -6,9 +6,9 @@
   "types": "./src/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "pretest": "npm run build",
+    "pretest": "yarn run build",
     "test": "mocha src/**/*.test.js",
-    "preversion": "npm install && npm run build",
+    "preversion": "yarn install && yarn run build",
     "postpublish": "git push"
   },
   "repository": {
