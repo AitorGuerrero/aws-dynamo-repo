@@ -31,4 +31,13 @@ export default class ManagedRepositoryGenerator<Entity> implements IEntityGenera
 
 		return entities;
 	}
+
+	public async slice(amount: number): Promise<Entity[]> {
+		const items = await this.generator.slice(amount);
+		for (const item of items) {
+			await this.repository.track(item);
+		}
+
+		return items;
+	}
 }

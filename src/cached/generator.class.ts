@@ -32,4 +32,15 @@ export default class CachedRepositoryGenerator<Entity> implements IEntityGenerat
 
 		return entities;
 	}
+
+	public async slice(amount: number): Promise<Entity[]> {
+		const items = await this.generator.slice(amount);
+		const cachedItems: Entity[] = [];
+		for (const item of items) {
+			await this.repository.addToCache(item);
+			cachedItems.push(await this.repository.get(this.repository.getEntityKey(item)));
+		}
+
+		return cachedItems;
+	}
 }
