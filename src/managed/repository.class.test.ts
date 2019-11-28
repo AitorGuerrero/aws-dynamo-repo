@@ -3,7 +3,7 @@ import {expect} from "chai";
 import {DynamoEntityManager, ParallelFlusher} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import {beforeEach, describe, it} from "mocha";
-import {PoweredDynamo} from "powered-dynamo";
+import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
 import RepositoryManaged from "./repository.class";
 

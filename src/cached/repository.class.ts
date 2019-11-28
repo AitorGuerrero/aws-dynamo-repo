@@ -1,6 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
-import {PoweredDynamo} from "powered-dynamo";
+import PoweredDynamo from "powered-dynamo";
 import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";

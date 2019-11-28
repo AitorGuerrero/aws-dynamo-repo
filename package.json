@@ -28,7 +28,7 @@
   "homepage": "https://github.com/AitorGuerrero/aws-dynamo-repo#readme",
   "dependencies": {
     "dynamo-entity-manager": "^2.1.4",
-    "powered-dynamo": "^1.6.0"
+    "powered-dynamo": "2"
   },
   "devDependencies": {
     "@types/chai": "^4.2.5",

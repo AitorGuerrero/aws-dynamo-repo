@@ -1,7 +1,7 @@
 import {DocumentClient} from "aws-sdk/clients/dynamodb";
 import {expect} from "chai";
 import {beforeEach, describe, it} from "mocha";
-import {PoweredDynamo} from "powered-dynamo";
+import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
 import RepositoryCached from "./repository.class";
 

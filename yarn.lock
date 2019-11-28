@@ -356,11 +356,16 @@ diff@^4.0.1:
   integrity sha512-s2+XdvhPCOF01LRQBC8hf4vhbVmI2CGS5aZnxLJlT5FtdhPCDFq80q++zK2KlrVorVDdL5BOGZ/VfLrVtYNF+Q==
 
 dynamo-entity-manager@^2.1.4:
-  version "2.1.4"
-  resolved "https://registry.yarnpkg.com/dynamo-entity-manager/-/dynamo-entity-manager-2.1.4.tgz#744316dedc9848d34b84170c861ffb5b440a3fb3"
-  integrity sha512-Mi0nXCrGM6o1EioRh36Kj2tvYRnu2BB1i7hzGsz9Kz6cZJnhDq5s72sDztNeGTC8exy8lGKZ9iXli3ssGDOJ7w==
+  version "2.1.6"
+  resolved "https://registry.yarnpkg.com/dynamo-entity-manager/-/dynamo-entity-manager-2.1.6.tgz#a16f1a181fe2885a43bfdeb01086b78f7fdef888"
+  integrity sha512-DyYi6jXqiENpbErfv3MwPXR7iDolulXy2TFOOg8kfckVgkw+JCuWPiu6dkUoAawaIBZR420bnzoRdLulAj8NWQ==
   dependencies:
-    powered-dynamo "^1.2.0"
+    powered-dynamo "2"
+
+dynamo-iterator@^1.0.0:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/dynamo-iterator/-/dynamo-iterator-1.0.1.tgz#5bfec092db1f4ecfd0c9a9e0a99b60f65ee5fc59"
+  integrity sha512-GLAO7pFjKDC0XwLpRz2fZt/Cl/Qb9Uud9/TJn3EAXD1NGe0Rt5fjKijW0HUX9U4IjM2WXmMAdSI2y3Mbwa68UQ==
 
 emoji-regex@^7.0.1:
   version "7.0.3"
@@ -1030,10 +1035,12 @@ pkg-dir@^3.0.0:
   dependencies:
     find-up "^3.0.0"
 
-powered-dynamo@^1.2.0, powered-dynamo@^1.6.0:
-  version "1.6.0"
-  resolved "https://registry.yarnpkg.com/powered-dynamo/-/powered-dynamo-1.6.0.tgz#ae24852e446f554b4c4893f6aac75c141ae6ed22"
-  integrity sha512-Sqr/FoKShVFqWEOhVTJPHIyUtvuD9AGZsbn0MpQS4m2EWFEKlS1QE1JHKtvWcvFza/GLH/qE1aHa9aJMoM2avg==
+powered-dynamo@2:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/powered-dynamo/-/powered-dynamo-2.0.0.tgz#f14de3bb64f056422338c66321c05b638e375b4a"
+  integrity sha512-T/BhkrrGxPHuFxzbPdUhZKxSw3V3W7oiuulo2RR3F2l4wsbM1CElr+++L9oqV0BYt3c3rsrLquWcdNCzh65xQA==
+  dependencies:
+    dynamo-iterator "^1.0.0"
 
 pseudomap@^1.0.2:
   version "1.0.2"
@@ -1090,9 +1097,9 @@ resolve-from@^4.0.0:
   integrity sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==
 
 resolve@^1.10.0, resolve@^1.3.2:
-  version "1.13.0"
-  resolved "https://registry.yarnpkg.com/resolve/-/resolve-1.13.0.tgz#e879eb397efb40511056ede7300b6ac28c51290b"
-  integrity sha512-HHZ3hmOrk5SvybTb18xq4Ek2uLqLO5/goFCYUyvn26nWox4hdlKlfC/+dChIZ6qc4ZeYcN9ekTz0yyHsFgumMw==
+  version "1.13.1"
+  resolved "https://registry.yarnpkg.com/resolve/-/resolve-1.13.1.tgz#be0aa4c06acd53083505abb35f4d66932ab35d16"
+  integrity sha512-CxqObCX8K8YtAhOBRg+lrcdn+LK+WYOS8tSjqSFbjtrI5PnS63QPhZl4+yKfrU9tdsbMu9Anr/amegT87M9Z6w==
   dependencies:
     path-parse "^1.0.6"
 

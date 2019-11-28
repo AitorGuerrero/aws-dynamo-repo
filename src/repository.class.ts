@@ -1,6 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
-import {PoweredDynamo} from "powered-dynamo";
+import PoweredDynamo from "powered-dynamo";
 import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
 import IEntityGenerator from "./generator.interface";

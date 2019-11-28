@@ -38,6 +38,18 @@ export default class EntityGenerator<Entity> implements IEntityGenerator<Entity>
 		return result;
 	}
 
+	public async slice(amount: number) {
+		const items = await this.generator.slice(amount);
+		return items.map((i) => {
+			const entity = this.tableConfig.unMarshal(i);
+			if (this.tableConfig.versionKey) {
+				this.registerVersion(entity, this.versionOfEntity(i));
+			}
+
+			return entity;
+		});
+	}
+
 	private versionOfEntity(item: DynamoDB.DocumentClient.AttributeMap) {
 		if (this.tableConfig.versionKey === undefined) {
 			return undefined;

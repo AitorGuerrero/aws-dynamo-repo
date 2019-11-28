@@ -17,14 +17,15 @@ export default class IncompleteIndexGenerator<E> extends EntityGenerator<E> {
 
 	public async next() {
 		const next = await this.generator.next();
-		if (next === undefined) {
+		if (next.done) {
 			return;
 		}
+		const entity = await next.value;
 		const key: DynamoDB.DocumentClient.Key = {
-			[this.tableConfig.keySchema.hash]: next[this.tableConfig.keySchema.hash],
+			[this.tableConfig.keySchema.hash]: entity[this.tableConfig.keySchema.hash],
 		};
 		if (this.tableConfig.keySchema.range) {
-			key[this.tableConfig.keySchema.range] = next[this.tableConfig.keySchema.range];
+			key[this.tableConfig.keySchema.range] = entity[this.tableConfig.keySchema.range];
 		}
 
 		return await this.repository.get(key);
