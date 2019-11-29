@@ -1,2 +1,6 @@
 .idea
-src/**/*.test.*
+test.*
+**/*.ts
+!**/*.d.ts
+.nyc_output
+node_modules
