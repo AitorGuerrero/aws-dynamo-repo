@@ -6,7 +6,6 @@ import DynamoCachedRepository, {ICachedRepositoryTableConfig} from "../cached/re
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
 import IScanInput from "../scan-input.interface";
-import ISearchResult from "../search-result.interface";
 import ManagedRepositoryGenerator from "./generator.class";
 
 export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
@@ -52,17 +51,17 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public scan(input: IScanInput): ISearchResult<Entity> {
+	public async scan(input: IScanInput) {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
-			super.scan(input),
+			await super.scan(input),
 		);
 	}
 
-	public query(input: IQueryInput): ISearchResult<Entity> {
+	public async query(input: IQueryInput) {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
-			super.query(input),
+			await super.query(input),
 		);
 	}
 }

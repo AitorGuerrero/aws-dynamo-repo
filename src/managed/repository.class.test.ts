@@ -78,7 +78,7 @@ describe("Having a managed repository", () => {
 			let entities: Entity[];
 			beforeEach(async () => {
 				firstReturnedEntity = (await repository.get({id: entityId}));
-				entities = await repository.scan({}).toArray();
+				entities = await (await repository.scan({})).toArray();
 			});
 			it("should return a entity", () => expect(entities.length).to.be.eq(1));
 			it("should return the same entity", () => expect(entities[0]).to.be.equal(firstReturnedEntity));

@@ -62,19 +62,19 @@ export default class DynamoRepository<Entity> {
 		return result;
 	}
 
-	public scan(input: IScanInput): ISearchResult<Entity> {
+	public async scan(input: IScanInput) {
 		return this.buildEntityGenerator(
 			input,
-			this.dc.scan(Object.assign({
+			await this.dc.scan(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);
 	}
 
-	public query(input: IQueryInput): ISearchResult<Entity> {
+	public async query(input: IQueryInput) {
 		return this.buildEntityGenerator(
 			input,
-			this.dc.query(Object.assign({
+			await this.dc.query(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);
@@ -88,7 +88,7 @@ export default class DynamoRepository<Entity> {
 		this.entityVersions.set(e, version);
 	}
 
-	private buildEntityGenerator(input: IQueryInput | IScanInput, generator: IGenerator) {
+	private buildEntityGenerator(input: IQueryInput | IScanInput, generator: IGenerator): ISearchResult<Entity> {
 		if (this.requestInputIsOfIncompleteIndex(input)) {
 			return  new IncompleteIndexGenerator<Entity>(
 				this,

@@ -70,17 +70,17 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 		this.cache.clear();
 	}
 
-	public scan(input: IScanInput): ISearchResult<Entity> {
+	public async scan(input: IScanInput): Promise<ISearchResult<Entity>> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			super.scan(input),
+			await super.scan(input),
 		);
 	}
 
-	public query(input: IQueryInput): ISearchResult<Entity> {
+	public async query(input: IQueryInput): Promise<ISearchResult<Entity>> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
-			super.query(input),
+			await super.query(input),
 		);
 	}
 

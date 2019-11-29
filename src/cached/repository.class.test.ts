@@ -125,7 +125,7 @@ describe("Having a repository with cache", () => {
 
 		describe("when searching for entities", () => {
 			it("should return the entities", async () => {
-				const getNextEntity = repository.scan({});
+				const getNextEntity = await repository.scan({});
 				const entities = await getNextEntity.toArray();
 				expect(entities.length).eq(3);
 				expect(entities[0].id).eq(entityId);
