@@ -3,15 +3,15 @@ import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
 import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
-import IEntityGenerator from "./generator.interface";
 import IncompleteIndexGenerator from "./incomplete-index-generator";
 import IQueryInput from "./query-input.interface";
 import IRepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
 import IScanInput from "./scan-input.interface";
+import ISearchResult from "./search-result.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export default class DynamoDBRepository<Entity> {
+export default class DynamoRepository<Entity> {
 
 	public readonly eventEmitter: EventEmitter;
 
@@ -62,7 +62,7 @@ export default class DynamoDBRepository<Entity> {
 		return result;
 	}
 
-	public scan(input: IScanInput): IEntityGenerator<Entity> {
+	public scan(input: IScanInput): ISearchResult<Entity> {
 		return this.buildEntityGenerator(
 			input,
 			this.dc.scan(Object.assign({
@@ -71,7 +71,7 @@ export default class DynamoDBRepository<Entity> {
 		);
 	}
 
-	public query(input: IQueryInput): IEntityGenerator<Entity> {
+	public query(input: IQueryInput): ISearchResult<Entity> {
 		return this.buildEntityGenerator(
 			input,
 			this.dc.query(Object.assign({

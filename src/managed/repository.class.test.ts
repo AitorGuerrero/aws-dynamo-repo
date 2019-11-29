@@ -5,7 +5,7 @@ import {EventEmitter} from "events";
 import {beforeEach, describe, it} from "mocha";
 import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
-import RepositoryManaged from "./repository.class";
+import DynamoManagedRepository from "./repository.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -34,7 +34,7 @@ describe("Having a managed repository", () => {
 
 	let documentClient: FakeDocumentClient;
 	let entityManager: DynamoEntityManager;
-	let repository: RepositoryManaged<Entity>;
+	let repository: DynamoManagedRepository<Entity>;
 
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
@@ -46,7 +46,7 @@ describe("Having a managed repository", () => {
 			}],
 			new EventEmitter(),
 		);
-		repository = new RepositoryManaged(
+		repository = new DynamoManagedRepository(
 			{
 				keySchema: {hash: "id"},
 				tableName,

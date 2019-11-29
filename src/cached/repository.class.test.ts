@@ -3,7 +3,7 @@ import {expect} from "chai";
 import {beforeEach, describe, it} from "mocha";
 import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
-import RepositoryCached from "./repository.class";
+import DynamoCachedRepository from "./repository.class";
 
 describe("Having a repository with cache", () => {
 
@@ -22,7 +22,7 @@ describe("Having a repository with cache", () => {
 	const tableName = "tableName";
 
 	let documentClient: FakeDocumentClient;
-	let repository: RepositoryCached<IEntity>;
+	let repository: DynamoCachedRepository<IEntity>;
 
 	function unMarshal(m: IMarshaled): IEntity {
 		return Object.assign(JSON.parse(JSON.stringify(m)), {marshaled: false});
@@ -34,7 +34,7 @@ describe("Having a repository with cache", () => {
 
 	beforeEach(() => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
-		repository = new RepositoryCached(
+		repository = new DynamoCachedRepository(
 			new PoweredDynamo(documentClient as any as DocumentClient),
 			{
 				keySchema,

@@ -1,11 +1,11 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import IEntityGenerator from "../generator.interface";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
-import DynamoDBRepository from "../repository.class";
+import DynamoRepository from "../repository.class";
 import IScanInput from "../scan-input.interface";
+import ISearchResult from "../search-result.interface";
 import CachedRepositoryGenerator from "./generator.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
@@ -14,7 +14,7 @@ export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableCo
 	marshal?: (e: Entity) => DocumentClient.AttributeMap;
 }
 
-export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity> {
+export default class DynamoCachedRepository<Entity> extends DynamoRepository<Entity> {
 
 	protected static getEntityKey<Entity>(entity: Entity, tableConfig: ICachedRepositoryTableConfig<unknown>) {
 		const marshaledEntity = tableConfig.marshal(entity);
@@ -59,7 +59,7 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 	}
 
 	public getEntityKey(e: Entity) {
-		return RepositoryCached.getEntityKey(e, this.config);
+		return DynamoCachedRepository.getEntityKey(e, this.config);
 	}
 
 	public async addToCache(e: Entity) {
@@ -70,14 +70,14 @@ export default class RepositoryCached<Entity> extends DynamoDBRepository<Entity>
 		this.cache.clear();
 	}
 
-	public scan(input: IScanInput): IEntityGenerator<Entity> {
+	public scan(input: IScanInput): ISearchResult<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
 			super.scan(input),
 		);
 	}
 
-	public query(input: IQueryInput): IEntityGenerator<Entity> {
+	public query(input: IQueryInput): ISearchResult<Entity> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
 			super.query(input),

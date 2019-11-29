@@ -1,9 +1,9 @@
 import {DynamoDB} from "aws-sdk";
 import IGenerator from "powered-dynamo/generator.interface";
-import IEntityGenerator from "./generator.interface";
 import IRepositoryTableConfig from "./repository-table-config.interface";
+import ISearchResult from "./search-result.interface";
 
-export default class EntityGenerator<Entity> implements IEntityGenerator<Entity> {
+export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
 
 	constructor(
 		protected generator: IGenerator,
@@ -11,17 +11,27 @@ export default class EntityGenerator<Entity> implements IEntityGenerator<Entity>
 		private registerVersion?: (e: Entity, v: number) => void,
 	) {}
 
-	public async next(): Promise<Entity> {
-		const next = await this.generator.next();
-		if (next === undefined) {
-			return;
-		}
-		const entity = this.tableConfig.unMarshal(next);
-		if (this.tableConfig.versionKey) {
-			this.registerVersion(entity, this.versionOfEntity(next));
+	public [Symbol.iterator](): ISearchResult<Entity> {
+		return this;
+	}
+
+	public next() {
+		const next = this.generator.next();
+		if (next.done) {
+			return next;
 		}
 
-		return entity;
+		return Object.assign({}, next, {
+			value: new Promise<Entity>(async (rs) => {
+				const marshaled = await next.value;
+				const entity = this.tableConfig.unMarshal(marshaled);
+				if (this.tableConfig.versionKey) {
+					this.registerVersion(entity, this.versionOfEntity(marshaled));
+				}
+
+				rs(entity);
+			}),
+		});
 	}
 
 	public count() {
@@ -29,25 +39,24 @@ export default class EntityGenerator<Entity> implements IEntityGenerator<Entity>
 	}
 
 	public async toArray() {
-		let e: Entity;
 		const result: Entity[] = [];
-		while (e = await this.next()) {
-			result.push(e);
+		for (const e of this) {
+			result.push(await e);
 		}
 
 		return result;
 	}
 
 	public async slice(amount: number) {
-		const items = await this.generator.slice(amount);
-		return items.map((i) => {
-			const entity = this.tableConfig.unMarshal(i);
-			if (this.tableConfig.versionKey) {
-				this.registerVersion(entity, this.versionOfEntity(i));
+		const result: Entity[] = [];
+		for (const entityPromise of this.generator) {
+			result.push(this.tableConfig.unMarshal(await entityPromise));
+			if (result.length === amount) {
+				break;
 			}
+		}
 
-			return entity;
-		});
+		return result;
 	}
 
 	private versionOfEntity(item: DynamoDB.DocumentClient.AttributeMap) {

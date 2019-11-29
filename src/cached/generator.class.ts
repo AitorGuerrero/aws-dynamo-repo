@@ -1,22 +1,31 @@
-import IEntityGenerator from "../generator.interface";
-import RepositoryCached from "./repository.class";
+import IIterator from "../iterator.interface";
+import ISearchResult from "../search-result.interface";
+import DynamoCachedRepository from "./repository.class";
 
-export default class CachedRepositoryGenerator<Entity> implements IEntityGenerator<Entity> {
+export default class CachedRepositoryGenerator<Entity> implements ISearchResult<Entity> {
 
 	constructor(
-		protected repository: RepositoryCached<Entity>,
-		private generator: IEntityGenerator<Entity>,
+		protected repository: DynamoCachedRepository<Entity>,
+		public generator: ISearchResult<Entity>,
 	) {
 	}
 
-	public async next() {
-		const entity = await this.generator.next();
-		if (entity === undefined) {
-			return;
-		}
-		await this.repository.addToCache(entity);
+	public [Symbol.iterator](): IIterator<Entity> {
+		return this;
+	}
 
-		return this.repository.get(this.repository.getEntityKey(entity));
+	public next() {
+		const next = this.generator.next();
+		if (next.done) {
+			return next;
+		}
+		return Object.assign({}, next, {
+			value: new Promise<Entity>(async (rs) => {
+				const entity = await next.value;
+				await this.repository.addToCache(entity);
+				rs(this.repository.get(this.repository.getEntityKey(entity)));
+			}),
+		});
 	}
 
 	public count() {
@@ -25,22 +34,22 @@ export default class CachedRepositoryGenerator<Entity> implements IEntityGenerat
 
 	public async toArray(): Promise<Entity[]> {
 		const entities: Entity[] = [];
-		let entity: Entity;
-		while (entity = await this.next()) {
-			entities.push(entity);
+		for (const entity of this) {
+			entities.push(await entity);
 		}
 
 		return entities;
 	}
 
 	public async slice(amount: number): Promise<Entity[]> {
-		const items = await this.generator.slice(amount);
-		const cachedItems: Entity[] = [];
-		for (const item of items) {
-			await this.repository.addToCache(item);
-			cachedItems.push(await this.repository.get(this.repository.getEntityKey(item)));
+		const entities: Entity[] = [];
+		for (const entity of this) {
+			entities.push(await entity);
+			if (entities.length === amount) {
+				break;
+			}
 		}
 
-		return cachedItems;
+		return entities;
 	}
 }

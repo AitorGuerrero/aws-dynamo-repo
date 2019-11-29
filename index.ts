@@ -1,12 +1,11 @@
-import RepositoryCached from "./src/cached/repository.class";
-import RepositoryManaged from "./src/managed/repository.class";
-import IRepositoryTableConfig, * as repositoryTableConfig from "./src/repository-table-config.interface";
-import DynamoDBRepository from "./src/repository.class";
+import DynamoCachedRepository from "./src/cached/repository.class";
+import DynamoManagedRepository from "./src/managed/repository.class";
+import IRepositoryTableConfig from "./src/repository-table-config.interface";
+import DynamoRepository from "./src/repository.class";
 
 export {
-	DynamoDBRepository,
+	DynamoRepository,
 	IRepositoryTableConfig,
-	repositoryTableConfig,
-	RepositoryCached,
-	RepositoryManaged,
+	DynamoCachedRepository,
+	DynamoManagedRepository,
 };

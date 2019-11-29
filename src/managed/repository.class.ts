@@ -2,14 +2,14 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import RepositoryCached, {ICachedRepositoryTableConfig} from "../cached/repository.class";
-import IEntityGenerator from "../generator.interface";
+import DynamoCachedRepository, {ICachedRepositoryTableConfig} from "../cached/repository.class";
 import IQueryInput from "../query-input.interface";
 import IRepositoryTableConfig from "../repository-table-config.interface";
 import IScanInput from "../scan-input.interface";
+import ISearchResult from "../search-result.interface";
 import ManagedRepositoryGenerator from "./generator.class";
 
-export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> {
+export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
 
 	protected config: IRepositoryTableConfig<Entity>;
 
@@ -52,14 +52,14 @@ export default class RepositoryManaged<Entity> extends RepositoryCached<Entity> 
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public scan(input: IScanInput): IEntityGenerator<Entity> {
+	public scan(input: IScanInput): ISearchResult<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			super.scan(input),
 		);
 	}
 
-	public query(input: IQueryInput): IEntityGenerator<Entity> {
+	public query(input: IQueryInput): ISearchResult<Entity> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			super.query(input),

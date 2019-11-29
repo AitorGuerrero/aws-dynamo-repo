@@ -1,21 +1,30 @@
-import IEntityGenerator from "../generator.interface";
-import RepositoryManaged from "./repository.class";
+import ISearchResult from "../search-result.interface";
+import DynamoManagedRepository from "./repository.class";
 
-export default class ManagedRepositoryGenerator<Entity> implements IEntityGenerator<Entity> {
+export default class ManagedRepositoryGenerator<Entity> implements ISearchResult<Entity> {
 
 	constructor(
-		protected repository: RepositoryManaged<Entity>,
-		private generator: IEntityGenerator<Entity>,
+		protected repository: DynamoManagedRepository<Entity>,
+		private generator: ISearchResult<Entity>,
 	) {}
 
-	public async next() {
-		const response = await this.generator.next();
-		if (response === undefined) {
-			return;
-		}
-		await this.repository.track(response);
+	public [Symbol.iterator](): ISearchResult<Entity> {
+		return this;
+	}
 
-		return response;
+	public next() {
+		const next = this.generator.next();
+		if (next === undefined) {
+			return next;
+		}
+
+		return Object.assign({}, next, {
+			value: new Promise<Entity>(async (rs) => {
+				const entity = await next.value;
+				await this.repository.track(entity);
+				rs(entity);
+			}),
+		});
 	}
 
 	public count() {
@@ -24,20 +33,22 @@ export default class ManagedRepositoryGenerator<Entity> implements IEntityGenera
 
 	public async toArray(): Promise<Entity[]> {
 		const entities: Entity[] = [];
-		let entity: Entity;
-		while (entity = await this.next()) {
-			entities.push(entity);
+		for (const entity of this) {
+			entities.push(await entity);
 		}
 
 		return entities;
 	}
 
 	public async slice(amount: number): Promise<Entity[]> {
-		const items = await this.generator.slice(amount);
-		for (const item of items) {
-			await this.repository.track(item);
+		const entities: Entity[] = [];
+		for (const entity of this) {
+			entities.push(await entity);
+			if (entities.length === amount) {
+				break;
+			}
 		}
 
-		return items;
+		return entities;
 	}
 }
