@@ -10,7 +10,7 @@
     "build": "tsc",
     "check:style": "tslint -p .",
     "check:builds": "tsc --noEmit",
-    "preversion": "yarn run build && yarn run coverage",
+    "preversion": "yarn run build",
     "coverage": "nyc mocha"
   },
   "repository": {
