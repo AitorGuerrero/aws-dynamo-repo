@@ -19,13 +19,15 @@ export default class CachedRepositoryGenerator<Entity> implements ISearchResult<
 		if (next.done) {
 			return next;
 		}
-		return Object.assign({}, next, {
+
+		return {
+			done: false,
 			value: new Promise<Entity>(async (rs) => {
 				const entity = await next.value;
 				await this.repository.addToCache(entity);
 				rs(this.repository.get(this.repository.getEntityKey(entity)));
 			}),
-		});
+		};
 	}
 
 	public count() {

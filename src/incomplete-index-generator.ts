@@ -18,7 +18,7 @@ export default class IncompleteIndexGenerator<E> extends EntityGenerator<E> {
 	public next() {
 		const next = this.generator.next();
 		if (next.done) {
-			return next;
+			return next as any;
 		}
 
 		return Object.assign({}, next, {

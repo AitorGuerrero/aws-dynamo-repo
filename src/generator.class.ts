@@ -21,7 +21,8 @@ export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
 			return next;
 		}
 
-		return Object.assign({}, next, {
+		return {
+			done: false,
 			value: new Promise<Entity>(async (rs) => {
 				const marshaled = await next.value;
 				const entity = this.tableConfig.unMarshal(marshaled);
@@ -31,7 +32,7 @@ export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
 
 				rs(entity);
 			}),
-		});
+		};
 	}
 
 	public count() {

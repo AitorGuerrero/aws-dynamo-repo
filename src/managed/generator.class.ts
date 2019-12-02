@@ -14,17 +14,18 @@ export default class ManagedRepositoryGenerator<Entity> implements ISearchResult
 
 	public next() {
 		const next = this.generator.next();
-		if (next === undefined) {
+		if (next.done) {
 			return next;
 		}
 
-		return Object.assign({}, next, {
+		return {
+			done: false,
 			value: new Promise<Entity>(async (rs) => {
 				const entity = await next.value;
 				await this.repository.track(entity);
 				rs(entity);
 			}),
-		});
+		};
 	}
 
 	public count() {
