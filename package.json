@@ -1,6 +1,6 @@
 {
   "name": "aws-dynamo-repo",
-  "version": "3.3.6",
+  "version": "3.3.7",
   "description": "Repositories for DynamoDB",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
