@@ -5,5 +5,5 @@ import DocumentClient = DynamoDB.DocumentClient;
 
 export default interface IQueryInput extends IScanInput {
 	IndexName?: DocumentClient.IndexName;
-	KeyConditionExpression: DocumentClient.KeyExpression;
+	KeyConditionExpression?: DocumentClient.KeyExpression;
 }
