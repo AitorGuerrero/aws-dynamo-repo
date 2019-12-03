@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/AitorGuerrero/aws-dynamo-repo#readme",
   "dependencies": {
-    "dynamo-entity-manager": "^2.1.4",
+    "dynamo-entity-manager": "^2.1.11",
     "powered-dynamo": "^2.1.4"
   },
   "devDependencies": {
