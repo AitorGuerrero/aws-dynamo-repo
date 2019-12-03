@@ -417,6 +417,11 @@ dynamo-iterator@^1.0.0:
   resolved "https://registry.yarnpkg.com/dynamo-iterator/-/dynamo-iterator-1.1.0.tgz#61f1b7bf2622d54ab0042a51566c08691f0d3cb6"
   integrity sha512-WOLkpHerX4fhMGtOCVQfgaKzKkmSBVG4l6tUNAKTHIc/d3RZ7CEtH3vbZbM9hjdbhegSQ/WT7jkmftTyOPtiDA==
 
+dynamo-iterator@^1.1.2:
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/dynamo-iterator/-/dynamo-iterator-1.1.2.tgz#3d195327023622c1850929e8c5758dc516e2e57b"
+  integrity sha512-XUkv1x9NEKn9b2k3LRcnyMLczbsLdCQkdzPVxviY81AZ3n8c5FSLvAsHCiqpign3qM9t4qlO6iUxwgRBehtMmA==
+
 emoji-regex@^7.0.1:
   version "7.0.3"
   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-7.0.3.tgz#933a04052860c85e83c122479c4748a8e4c72156"
@@ -1236,6 +1241,13 @@ powered-dynamo@^2:
   integrity sha512-MjEq/Pa3nbt4R3ta4gLuObP5O7GDjaNVkqWvpBuM6K4/08fiH3gjAmn+2CmpKRbBdIaTgpd+1gXyn0ycovqXTA==
   dependencies:
     dynamo-iterator "^1.0.0"
+
+powered-dynamo@^2.1.4:
+  version "2.1.4"
+  resolved "https://registry.yarnpkg.com/powered-dynamo/-/powered-dynamo-2.1.4.tgz#c723e304e41c6422e53e124d3a5c3a9041b50b75"
+  integrity sha512-Y0DxWBkc2LzFBmeLJyX/SDSELuOi8eU+H+npjTH/JQwkrC+Vgndi7UR/inxeQngeY8oqeqyLVklpLJl+L5nT6w==
+  dependencies:
+    dynamo-iterator "^1.1.2"
 
 pseudomap@^1.0.2:
   version "1.0.2"
