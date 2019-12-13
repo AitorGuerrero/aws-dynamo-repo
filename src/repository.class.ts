@@ -1,19 +1,17 @@
 import {DynamoDB} from "aws-sdk";
-import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
 import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
 import IncompleteIndexGenerator from "./incomplete-index-generator";
 import IQueryInput from "./query-input.interface";
 import IRepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
+import IDynamoRepository from "./repository.interface";
 import IScanInput from "./scan-input.interface";
 import ISearchResult from "./search-result.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export default class DynamoRepository<Entity> {
-
-	public readonly eventEmitter: EventEmitter;
+export default class DynamoRepository<Entity> implements IDynamoRepository<Entity> {
 
 	protected readonly config: IRepositoryTableConfig<Entity>;
 
@@ -22,13 +20,11 @@ export default class DynamoRepository<Entity> {
 	constructor(
 		protected dc: PoweredDynamo,
 		config: IRepositoryTableConfig<Entity>,
-		eventEmitter?: EventEmitter,
 	) {
 		this.config = Object.assign({
 			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
 			unMarshal: (e: DocumentClient.AttributeMap) => JSON.parse(JSON.stringify(e)) as Entity,
 		}, config);
-		this.eventEmitter = eventEmitter || new EventEmitter();
 	}
 
 	public async get(Key: DocumentClient.Key): Promise<Entity> {

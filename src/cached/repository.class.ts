@@ -32,9 +32,9 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 	constructor(
 		protected dynamo: PoweredDynamo,
 		config: ICachedRepositoryTableConfig<Entity>,
-		eventEmitter?: EventEmitter,
+		public readonly eventEmitter: EventEmitter = new EventEmitter(),
 	) {
-		super(dynamo, config, eventEmitter);
+		super(dynamo, config);
 		this.cache = new Map();
 	}
 

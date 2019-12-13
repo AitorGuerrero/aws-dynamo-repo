@@ -37,7 +37,7 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		return list;
 	}
 
-	public delete(e: Entity) {
+	public async delete(e: Entity) {
 		this.entityManager.delete(this.config.tableName, e);
 	}
 
