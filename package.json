@@ -6,7 +6,7 @@
   "types": "./src/index.d.ts",
   "scripts": {
     "pretest": "yarn build",
-    "test": "mocha src/**/*.test.js",
+    "test": "mocha",
     "build": "tsc",
     "check:style": "tslint -p .",
     "check:builds": "tsc --noEmit",
@@ -34,13 +34,15 @@
   },
   "devDependencies": {
     "@types/chai": "^4.2.5",
-    "@types/mocha": "^5.2.7",
+    "@types/mocha": "^7.0.2",
     "@types/node": "^12.12.14",
-    "aws-sdk": "2.488.0",
+    "aws-sdk": "^2.656.0",
     "chai": "^4.2.0",
-    "husky": "^3.1.0",
-    "mocha": "^6.2.2",
-    "nyc": "^14.1.1",
+    "husky": "^4.2.3",
+    "mocha": "^7.1.1",
+    "nyc": "^15.0.1",
+    "source-map-support": "^0.5.16",
+    "ts-node": "^8.8.2",
     "tslint": "^5.20.1",
     "typescript": "^3.7.2"
   },
@@ -48,10 +50,5 @@
     "hooks": {
       "pre-commit": "yarn && yarn check:style && yarn check:builds && yarn test"
     }
-  },
-  "nyc": {
-    "extends": "@istanbuljs/nyc-config-typescript",
-    "all": true,
-    "check-coverage": true
   }
 }
