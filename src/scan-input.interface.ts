@@ -11,4 +11,5 @@ export default interface IScanInput {
 	KeyConditionExpression?: DocumentClient.KeyExpression;
 	ExpressionAttributeNames?: DocumentClient.ExpressionAttributeNameMap;
 	ExpressionAttributeValues?: DocumentClient.ExpressionAttributeValueMap;
+	ProjectionExpression?: string;
 }
