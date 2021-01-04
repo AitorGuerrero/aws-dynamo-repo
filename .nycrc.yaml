@@ -2,10 +2,10 @@ all: true
 check-coverage: true
 include:
   - src
-statements: 62
-branches: 51
-functions: 65
-lines: 61
+statements: 76
+branches: 63
+functions: 72
+lines: 75
 watermarks:
   branches: [90, 100]
   lines: [90, 100]

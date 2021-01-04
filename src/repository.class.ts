@@ -18,7 +18,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 	private entityVersions = new Map<Entity, number>();
 
 	constructor(
-		protected dc: PoweredDynamo,
+		protected poweredDynamo: PoweredDynamo,
 		config: IRepositoryTableConfig<Entity>,
 	) {
 		this.config = Object.assign({
@@ -32,7 +32,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 			Key,
 			TableName: this.config.tableName,
 		};
-		const response = await this.dc.get(input);
+		const response = await this.poweredDynamo.get(input)
 		if (response.Item !== undefined) {
 			const entity = this.config.unMarshal(response.Item);
 			if (this.config.versionKey) {
@@ -47,7 +47,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 
 	public async getList(keys: DocumentClient.Key[]) {
 		const result = new Map<DocumentClient.Key, Entity>();
-		const items = await this.dc.getList(this.config.tableName, keys);
+		const items = await this.poweredDynamo.getList(this.config.tableName, keys);
 		for (const key of items.keys()) {
 			const item = items.get(key);
 			const entity = this.config.unMarshal(item);
@@ -61,7 +61,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 	public async scan(input: IScanInput) {
 		return this.buildEntityGenerator(
 			input,
-			await this.dc.scan(Object.assign({
+			await this.poweredDynamo.scan(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);
@@ -70,7 +70,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 	public async query(input: IQueryInput) {
 		return this.buildEntityGenerator(
 			input,
-			await this.dc.query(Object.assign({
+			await this.poweredDynamo.query(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);

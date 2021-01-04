@@ -107,7 +107,7 @@ describe("Having a managed repository", () => {
 		});
 
 		describe("and deleting a attribute", () => {
-			beforeEach(async () => entity.toDelete = undefined);
+			beforeEach(() => entity.toDelete = undefined);
 			describe("and flushed", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {

@@ -13,8 +13,6 @@ export default class FakeDocumentClient {
 	private resumedEventEmitter: EventEmitter;
 	private shouldFail: boolean;
 	private error: Error;
-	private hashKey: string;
-	private rangeKey: string;
 
 	constructor(
 		private readonly keySchemas: {[tableName: string]: {hash: string, range?: string}},
@@ -26,182 +24,112 @@ export default class FakeDocumentClient {
 		this.collections = {};
 	}
 
-	public async get(
+	public get(
 		input: DocumentClient.GetItemInput,
-		cb: (err?: Error, result?: DocumentClient.GetItemOutput) => any,
 	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const hashKey = input.Key[this.keySchemas[input.TableName].hash];
-		const rangeKey = input.Key[this.keySchemas[input.TableName].range];
-		this.ensureHashKey(input.TableName, hashKey);
-		const marshaled = this.collections[input.TableName][hashKey][rangeKey];
-		cb(null, {Item: marshaled ? JSON.parse(this.collections[input.TableName][hashKey][rangeKey]) : undefined});
+		return {promise: async () => {
+			await this.awaitFlush();
+			this.guardShouldFail();
+			const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+			const rangeKey = input.Key[this.keySchemas[input.TableName].range];
+			this.ensureHashKey(input.TableName, hashKey);
+			const marshaled = this.collections[input.TableName][hashKey][rangeKey];
+			const a = marshaled ? JSON.parse(marshaled) : undefined;
+
+			return ({Item: a});
+		}};
 	}
 
 	public async set(tableName: TableName, item: DocumentClient.AttributeMap) {
-		await new Promise((rs) => this.put({TableName: tableName, Item: item}, () => rs()));
+		await this.put({TableName: tableName, Item: item}).promise();
 	}
 
-	public getByKey<IEntity>(tableName: TableName, key: DocumentClient.Key): IEntity {
-		return new Promise((rs) => this.get({TableName: tableName, Key: key}, (err, result) => rs(result.Item))) as any;
+	public async getByKey<IEntity>(tableName: TableName, key: DocumentClient.Key): Promise<IEntity> {
+		return (await this.get({TableName: tableName, Key: key}).promise()).Item;
 	}
 
-	public async batchGet(
+	public batchGet(
 		input: DocumentClient.BatchGetItemInput,
-		cb: (err?: Error, result?: DocumentClient.BatchGetItemOutput) => any,
 	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const response: DocumentClient.BatchGetItemOutput = {Responses: {}};
-		for (const tableName in input.RequestItems) {
-			response.Responses[tableName] = [];
-			for (const request of input.RequestItems[tableName].Keys) {
-				const hashKey = request[this.keySchemas[tableName].hash];
-				const rangeKey = request[this.keySchemas[tableName].range];
-				this.ensureHashKey(tableName, hashKey);
-				const item = this.collections[tableName][hashKey][rangeKey];
-				if (item !== undefined) {
-					response.Responses[tableName].push(JSON.parse(item));
+		return {promise: async () => {
+			await this.awaitFlush();
+			this.guardShouldFail();
+			const response: DocumentClient.BatchGetItemOutput = {Responses: {}};
+			for (const tableName in input.RequestItems) {
+				response.Responses[tableName] = [];
+				for (const request of input.RequestItems[tableName].Keys) {
+					const hashKey = request[this.keySchemas[tableName].hash];
+					const rangeKey = request[this.keySchemas[tableName].range];
+					this.ensureHashKey(tableName, hashKey);
+					const item = this.collections[tableName][hashKey][rangeKey];
+					if (item !== undefined) {
+						response.Responses[tableName].push(JSON.parse(item));
+					}
 				}
 			}
-		}
-		cb(null, response);
+			return response
+		}};
 	}
 
-	public async scan(
+	public scan(
 		input: DocumentClient.ScanInput,
-		cb: (err?: Error, result?: DocumentClient.ScanOutput) => any,
 	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const response: DocumentClient.ScanOutput = {Items: []};
-		const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
-		const existingHashKeys = Object.keys(this.collections[input.TableName]);
-		let hashKey = startKey.hash;
-		let rangeKey = startKey.range;
-		let rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
-		while (this.collections[input.TableName][hashKey] !== undefined) {
-			while (rangeKey !== undefined && this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
-				response.Items.push(JSON.parse(this.collections[input.TableName][hashKey][rangeKey]));
-				rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
-			}
-			hashKey = existingHashKeys[existingHashKeys.indexOf(hashKey) + 1];
-			if (hashKey === undefined) {
-				break;
-			}
-			rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
-			rangeKey = rangeKeys[0];
-		}
-		if (hashKey !== undefined) {
-			response.LastEvaluatedKey = {
-				[this.keySchemas[input.TableName].hash]: hashKey,
-				[this.keySchemas[input.TableName].range]: rangeKey,
-			};
-		}
-
-		cb(null, response);
-	}
-
-	public async query(
-		input: DocumentClient.QueryInput,
-		cb: (err?: Error, result?: DocumentClient.QueryOutput) => any,
-	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const response: DocumentClient.ScanOutput = {Items: []};
-		const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
-		const hashKeys = Object.keys(this.collections[input.TableName]);
-		let hashKey = startKey.hash;
-		let rangeKey = startKey.range;
-		let rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
-		while (this.collections[input.TableName][hashKey] !== undefined) {
-			while (rangeKey !== undefined && this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
-				response.Items.push(JSON.parse(this.collections[input.TableName][hashKey][rangeKey]));
-				rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
-			}
-			hashKey = hashKeys[hashKeys.indexOf(hashKey) + 1];
-			if (hashKey === undefined) {
-				break;
-			}
-			rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
-			rangeKey = rangeKeys[0];
-		}
-		if (hashKey !== undefined) {
-			response.LastEvaluatedKey = {
-				[this.keySchemas[input.TableName].hash]: hashKey,
-				[this.keySchemas[input.TableName].range]: rangeKey,
-			};
-		}
-
-		cb(null, response);
-	}
-
-	public async update(
-		input: DocumentClient.UpdateItemInput,
-		cb: (err?: Error, result?: DocumentClient.UpdateItemOutput) => any,
-	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const item = await this.getByKey(input.TableName, input.Key);
-		const updates: {k: string, v: any}[] = /UPDATE/.test(input.UpdateExpression) ?
-			/UPDATE ([^,]*)/.exec(input.UpdateExpression)[1]
-				.split(" AND ").map((s) => s.replace(" ", "").split("="))
-				.map((s) => ({k: s[0], v: s[1]})) :
-			[];
-		const deletes: string[] = /DELETE/.test(input.UpdateExpression) ?
-			/DELETE ([^,]*)/.exec(input.UpdateExpression)[1]
-				.split(" AND ").map((s) => s.replace(" ", "")) :
-			[];
-
-		for (const update of updates) {
-			let toUpdate: any = item;
-			for (const k of update.k.split(".")) {
-				const realName = input.ExpressionAttributeNames[k];
-				if (typeof toUpdate[realName] !== "object") {
-					toUpdate[realName] = input.ExpressionAttributeValues[update.v];
-					continue;
+		return {promise: async () => {
+				await this.awaitFlush();
+				this.guardShouldFail();
+				const response: DocumentClient.ScanOutput = {Items: []};
+				const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
+				const existingHashKeys = Object.keys(this.collections[input.TableName]);
+				let hashKey = startKey.hash;
+				let rangeKey = startKey.range;
+				let rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
+				while (this.collections[input.TableName][hashKey] !== undefined) {
+					while (rangeKey !== undefined && this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
+						response.Items.push(JSON.parse(this.collections[input.TableName][hashKey][rangeKey]));
+						rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
+					}
+					hashKey = existingHashKeys[existingHashKeys.indexOf(hashKey) + 1];
+					if (hashKey === undefined) {
+						break;
+					}
+					rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
+					rangeKey = rangeKeys[0];
 				}
-				toUpdate = toUpdate[realName];
-			}
-		}
-		for (const deleteField of deletes) {
-			let toDelete: any = item;
-			for (const k of deleteField.split(".")) {
-				const realName = input.ExpressionAttributeNames[k];
-				if (typeof toDelete[realName] !== "object") {
-					toDelete[realName] = undefined;
-					continue;
+				if (hashKey !== undefined) {
+					response.LastEvaluatedKey = {
+						[this.keySchemas[input.TableName].hash]: hashKey,
+						[this.keySchemas[input.TableName].range]: rangeKey,
+					};
 				}
-				toDelete = toDelete[realName];
-			}
-		}
-		await this.set(input.TableName, item);
-
-		cb(null, {});
+			return response;
+			}};
 	}
 
-	public async put(
+	public put(
 		input: DocumentClient.PutItemInput,
-		cb: (err?: Error, result?: DocumentClient.PutItemOutput) => any,
 	) {
-		await this.awaitFlush();
-		this.guardShouldFail(cb);
-		const hashKey = input.Item[this.keySchemas[input.TableName].hash];
-		const rangeKey = input.Item[this.keySchemas[input.TableName].range];
-		this.ensureHashKey(input.TableName, hashKey);
-		this.collections[input.TableName][hashKey][rangeKey] = JSON.stringify(input.Item);
-		cb(null, {});
+		return {promise: async () => {
+				await this.awaitFlush();
+				this.guardShouldFail();
+				const hashKey = input.Item[this.keySchemas[input.TableName].hash];
+				const rangeKey = input.Item[this.keySchemas[input.TableName].range];
+				this.ensureHashKey(input.TableName, hashKey);
+				this.collections[input.TableName][hashKey][rangeKey] = JSON.stringify(input.Item);
+			return ({})
+			}};
 	}
 
-	public async delete(
+	public delete(
 		input: DocumentClient.DeleteItemInput,
-		cb: (err?: Error, result?: DocumentClient.DeleteItemOutput) => any,
 	) {
-		const hashKey = input.Key[this.keySchemas[input.TableName].hash];
-		const rangeKey = input.Key[this.keySchemas[input.TableName].range];
-		this.collections[input.TableName][hashKey][rangeKey] = undefined;
-		cb(null, {});
+
+
+		return {promise: async () => {
+				const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+				const rangeKey = input.Key[this.keySchemas[input.TableName].range];
+				this.collections[input.TableName][hashKey][rangeKey] = undefined;
+			return ({})
+			}};
 	}
 
 	public flush() {
@@ -212,27 +140,6 @@ export default class FakeDocumentClient {
 	public failOnCall(error?: Error) {
 		this.shouldFail = true;
 		this.error = error;
-	}
-
-	public transactWrite(
-		input: DocumentClient.TransactWriteItemsInput,
-		cb: (err?: Error, result?: DocumentClient.TransactWriteItemsOutput) => any,
-	) {
-		input.TransactItems
-			.filter((i) => i !== undefined)
-			.forEach((i) => {
-				if (i.Delete) {
-					const hashKey = i.Delete.Key[this.keySchemas[i.Delete.TableName].hash];
-					const rangeKey = i.Delete.Key[this.keySchemas[i.Delete.TableName].range];
-					this.collections[i.Delete.TableName][hashKey][rangeKey] = undefined;
-				} else if (i.Put) {
-					const hashKey = i.Put.Item[this.keySchemas[i.Put.TableName].hash];
-					const rangeKey = i.Put.Item[this.keySchemas[i.Put.TableName].range];
-					this.ensureHashKey(i.Put.TableName, hashKey);
-					this.collections[i.Put.TableName][hashKey][rangeKey] = JSON.stringify(i.Put.Item);
-				}
-			});
-		cb(null, {});
 	}
 
 	private getStartKey(tableName: string, exclusiveStartKey: DocumentClient.Key) {
@@ -263,13 +170,12 @@ export default class FakeDocumentClient {
 		}
 	}
 
-	private guardShouldFail(cb: (err: Error) => any) {
+	private guardShouldFail() {
 		if (this.shouldFail === false) {
 			return;
 		}
-		const error = this.error !== undefined ? this.error : new Error("Repository error");
-		cb(error);
-		throw error;
+
+		throw this.error !== undefined ? this.error : new Error("Repository error");
 	}
 
 	private ensureHashKey(tableName: string, hashKey: string) {
