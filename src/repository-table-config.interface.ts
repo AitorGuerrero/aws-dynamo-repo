@@ -6,7 +6,7 @@ export enum ProjectionType {
 	keysOnly = "KEYS_ONLY", include = "INCLUDE", all = "ALL",
 }
 
-export default interface IRepositoryTableConfig<Entity> {
+export default interface IRepositoryTableConfig<Entity, Marshaled extends DocumentClient.AttributeMap = unknown> {
 	tableName: string;
 	keySchema: {
 		hash: string;
@@ -18,5 +18,5 @@ export default interface IRepositoryTableConfig<Entity> {
 		};
 	};
 	versionKey?: string;
-	unMarshal?: (item: DocumentClient.AttributeMap) => Entity;
+	unMarshal?: (item: Marshaled) => Entity;
 }
