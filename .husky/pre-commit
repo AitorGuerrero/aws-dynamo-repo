@@ -1,0 +1,7 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+yarn install --clean
+yarn build:check
+yarn mocha --reporter=dot --forbid-only --forbid-pending
+yarn style:check
