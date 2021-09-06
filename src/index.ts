@@ -1,16 +1,13 @@
-import IQueryInput from "./query-input.interface";
-import IRepositoryTableConfig, * as repositoryTableConfig from "./repository-table-config.interface";
-import DynamoRepository from "./repository.class";
-import IDynamoRepository from "./repository.interface";
-import IScanInput from "./scan-input.interface";
-import ISearchResult from "./search-result.interface";
+import RepositoryTableConfig from "./repository-table-config.interface";
+import { ProjectionType } from "./repository-table-config.interface";
+import DynamoRepository, {QueryInput, ScanInput } from "./repository.class";
+import SearchResult from "./search-result.interface";
 
 export {
 	DynamoRepository,
-	IRepositoryTableConfig,
-	repositoryTableConfig,
-	IQueryInput,
-	IScanInput,
-	ISearchResult,
-	IDynamoRepository,
+	RepositoryTableConfig,
+	ProjectionType,
+	SearchResult,
+	ScanInput,
+	QueryInput,
 };

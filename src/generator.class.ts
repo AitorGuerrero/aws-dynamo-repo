@@ -1,17 +1,17 @@
 import {DynamoDB} from "aws-sdk";
 import IGenerator from "powered-dynamo/generator.interface";
-import IRepositoryTableConfig from "./repository-table-config.interface";
-import ISearchResult from "./search-result.interface";
+import RepositoryTableConfig from "./repository-table-config.interface";
+import SearchResult from "./search-result.interface";
 
-export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
+export default class EntityGenerator<Entity> implements SearchResult<Entity> {
 
 	constructor(
 		protected generator: IGenerator,
-		protected tableConfig: IRepositoryTableConfig<Entity>,
+		protected tableConfig: RepositoryTableConfig<Entity>,
 		private registerVersion?: (e: Entity, v: number) => void,
 	) {}
 
-	public [Symbol.iterator](): ISearchResult<Entity> {
+	public [Symbol.iterator](): SearchResult<Entity> {
 		return this;
 	}
 

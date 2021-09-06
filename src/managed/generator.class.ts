@@ -1,14 +1,14 @@
-import ISearchResult from "../search-result.interface";
+import SearchResult from "../search-result.interface";
 import DynamoManagedRepository from "./repository.class";
 
-export default class ManagedRepositoryGenerator<Entity> implements ISearchResult<Entity> {
+export default class ManagedRepositoryGenerator<Entity> implements SearchResult<Entity> {
 
 	constructor(
 		protected repository: DynamoManagedRepository<Entity>,
-		private generator: ISearchResult<Entity>,
+		private generator: SearchResult<Entity>,
 	) {}
 
-	public [Symbol.iterator](): ISearchResult<Entity> {
+	public [Symbol.iterator](): SearchResult<Entity> {
 		return this;
 	}
 

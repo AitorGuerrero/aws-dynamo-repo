@@ -3,23 +3,23 @@ import PoweredDynamo from "powered-dynamo";
 import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
 import IncompleteIndexGenerator from "./incomplete-index-generator";
-import IQueryInput from "./query-input.interface";
-import IRepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
-import IDynamoRepository from "./repository.interface";
-import IScanInput from "./scan-input.interface";
-import ISearchResult from "./search-result.interface";
+import RepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
+import SearchResult from "./search-result.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export default class DynamoRepository<Entity> implements IDynamoRepository<Entity> {
+export type QueryInput = Omit<DynamoDB.DocumentClient.QueryInput, 'TableName'>;
+export type ScanInput = Omit<DynamoDB.DocumentClient.ScanInput, 'TableName'>;
 
-	protected readonly config: IRepositoryTableConfig<Entity>;
+export default class DynamoRepository<Entity> {
+
+	protected readonly config: RepositoryTableConfig<Entity>;
 
 	private entityVersions = new Map<Entity, number>();
 
 	constructor(
 		protected poweredDynamo: PoweredDynamo,
-		config: IRepositoryTableConfig<Entity>,
+		config: RepositoryTableConfig<Entity>,
 	) {
 		this.config = Object.assign({
 			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
@@ -58,7 +58,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 		return result;
 	}
 
-	public async scan(input: IScanInput) {
+	public async scan(input: ScanInput) {
 		return this.buildEntityGenerator(
 			input,
 			await this.poweredDynamo.scan(Object.assign({
@@ -67,7 +67,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 		);
 	}
 
-	public async query(input: IQueryInput) {
+	public async query(input: QueryInput) {
 		return this.buildEntityGenerator(
 			input,
 			await this.poweredDynamo.query(Object.assign({
@@ -84,7 +84,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 		this.entityVersions.set(e, version);
 	}
 
-	private buildEntityGenerator(input: IQueryInput | IScanInput, generator: IGenerator): ISearchResult<Entity> {
+	private buildEntityGenerator(input: QueryInput | ScanInput, generator: IGenerator): SearchResult<Entity> {
 		if (this.requestInputIsOfIncompleteIndex(input)) {
 			return  new IncompleteIndexGenerator<Entity>(
 				this,
@@ -101,7 +101,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 		);
 	}
 
-	private requestInputIsOfIncompleteIndex(input: IQueryInput | IScanInput) {
+	private requestInputIsOfIncompleteIndex(input: QueryInput | ScanInput) {
 		return input.IndexName
 			&& this.config.secondaryIndexes
 			&& this.config.secondaryIndexes[input.IndexName]

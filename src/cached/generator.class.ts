@@ -1,16 +1,16 @@
-import IIterator from "../iterator.interface";
-import ISearchResult from "../search-result.interface";
+import Iterator from "../iterator.interface";
+import SearchResult from "../search-result.interface";
 import DynamoCachedRepository from "./repository.class";
 
-export default class CachedRepositoryGenerator<Entity> implements ISearchResult<Entity> {
+export default class CachedRepositoryGenerator<Entity> implements SearchResult<Entity> {
 
 	constructor(
 		protected repository: DynamoCachedRepository<Entity>,
-		public generator: ISearchResult<Entity>,
+		public generator: SearchResult<Entity>,
 	) {
 	}
 
-	public [Symbol.iterator](): IIterator<Entity> {
+	public [Symbol.iterator](): Iterator<Entity> {
 		return this;
 	}
 

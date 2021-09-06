@@ -2,15 +2,14 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import DynamoCachedRepository, {ICachedRepositoryTableConfig} from "../cached/repository.class";
-import IQueryInput from "../query-input.interface";
-import IScanInput from "../scan-input.interface";
+import DynamoCachedRepository, {CachedRepositoryTableConfig} from "../cached/repository.class";
 import ManagedRepositoryGenerator from "./generator.class";
+import {QueryInput, ScanInput} from '../repository.class';
 
 export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
 
 	constructor(
-		config: ICachedRepositoryTableConfig<Entity>,
+		config: CachedRepositoryTableConfig<Entity>,
 		dynamo: PoweredDynamo,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
@@ -48,14 +47,14 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public async scan(input: IScanInput) {
+	public async scan(input: ScanInput) {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			await super.scan(input),
 		);
 	}
 
-	public async query(input: IQueryInput) {
+	public async query(input: QueryInput) {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			await super.query(input),

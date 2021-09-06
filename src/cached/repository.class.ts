@@ -1,22 +1,20 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import IQueryInput from "../query-input.interface";
-import IRepositoryTableConfig from "../repository-table-config.interface";
-import DynamoRepository from "../repository.class";
-import IScanInput from "../scan-input.interface";
-import ISearchResult from "../search-result.interface";
+import RepositoryTableConfig from "../repository-table-config.interface";
+import DynamoRepository, {QueryInput, ScanInput} from '../repository.class';
+import SearchResult from "../search-result.interface";
 import CachedRepositoryGenerator from "./generator.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableConfig<Entity> {
+export interface CachedRepositoryTableConfig<Entity> extends RepositoryTableConfig<Entity> {
 	marshal?: (e: Entity) => DocumentClient.AttributeMap;
 }
 
 export default class DynamoCachedRepository<Entity> extends DynamoRepository<Entity> {
 
-	protected static getEntityKey<Entity>(entity: Entity, tableConfig: ICachedRepositoryTableConfig<unknown>) {
+	protected static getEntityKey<Entity>(entity: Entity, tableConfig: CachedRepositoryTableConfig<unknown>) {
 		const marshaledEntity = tableConfig.marshal(entity);
 		const key: DocumentClient.Key = {};
 		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
@@ -31,7 +29,7 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 
 	constructor(
 		protected dynamo: PoweredDynamo,
-		config: ICachedRepositoryTableConfig<Entity>,
+		config: CachedRepositoryTableConfig<Entity>,
 		public readonly eventEmitter: EventEmitter = new EventEmitter(),
 	) {
 		super(dynamo, config);
@@ -70,14 +68,14 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 		this.cache.clear();
 	}
 
-	public async scan(input: IScanInput): Promise<ISearchResult<Entity>> {
+	public async scan(input: ScanInput): Promise<SearchResult<Entity>> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
 			await super.scan(input),
 		);
 	}
 
-	public async query(input: IQueryInput): Promise<ISearchResult<Entity>> {
+	public async query(input: QueryInput): Promise<SearchResult<Entity>> {
 		return new CachedRepositoryGenerator<Entity>(
 			this,
 			await super.query(input),

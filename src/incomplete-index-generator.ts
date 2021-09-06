@@ -1,7 +1,7 @@
 import {DynamoDB} from "aws-sdk";
 import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
-import IRepositoryTableConfig from "./repository-table-config.interface";
+import RepositoryTableConfig from "./repository-table-config.interface";
 import DynamoRepository from "./repository.class";
 
 export default class IncompleteIndexGenerator<E> extends EntityGenerator<E> {
@@ -9,7 +9,7 @@ export default class IncompleteIndexGenerator<E> extends EntityGenerator<E> {
 	constructor(
 		private repository: DynamoRepository<E>,
 		generator: IGenerator,
-		tableConfig: IRepositoryTableConfig<E>,
+		tableConfig: RepositoryTableConfig<E>,
 		registerVersion?: (entity: E, v: number) => void,
 	) {
 		super(generator, tableConfig, registerVersion);
