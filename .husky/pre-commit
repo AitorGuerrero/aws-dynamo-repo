@@ -3,5 +3,5 @@
 
 yarn install --clean
 yarn build:check
-yarn mocha --reporter=dot --forbid-only --forbid-pending
-yarn style:check
+yarn nyc --reporter=text-summary mocha --reporter=dot --forbid-only --forbid-pending
+tslint -p .
