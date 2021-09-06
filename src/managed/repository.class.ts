@@ -4,13 +4,10 @@ import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
 import DynamoCachedRepository, {ICachedRepositoryTableConfig} from "../cached/repository.class";
 import IQueryInput from "../query-input.interface";
-import IRepositoryTableConfig from "../repository-table-config.interface";
 import IScanInput from "../scan-input.interface";
 import ManagedRepositoryGenerator from "./generator.class";
 
 export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
-
-	protected config: IRepositoryTableConfig<Entity>;
 
 	constructor(
 		config: ICachedRepositoryTableConfig<Entity>,
