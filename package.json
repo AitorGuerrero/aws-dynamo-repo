@@ -3,7 +3,24 @@
   "version": "3.5.2",
   "description": "Repositories for DynamoDB",
   "main": "./src/index.js",
-  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./cached": "./src/cached/index.js",
+    "./managed": "./src/managed/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./src/index.ts"
+      ],
+      "cached": [
+        "./src/cached/index.ts"
+      ],
+      "managed": [
+        "./src/managed/index.ts"
+      ]
+    }
+  },
   "scripts": {
     "prebuild": "yarn",
     "build": "tsc",
