@@ -17,14 +17,14 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		super(dynamo, config, eventEmitter);
 	}
 
-	public async get(key: DynamoDB.DocumentClient.Key) {
+	public async get(key: DynamoDB.DocumentClient.Key): Promise<Entity | undefined> {
 		const result = await super.get(key);
 		this.entityManager.track(this.config.tableName, result, this.versionOf(result));
 
 		return result;
 	}
 
-	public async getList(keys: DynamoDB.DocumentClient.Key[]) {
+	public async getList(keys: DynamoDB.DocumentClient.Key[]): Promise<Map<DynamoDB.DocumentClient.Key, Entity | undefined>> {
 		const list = await super.getList(keys);
 		for (const entity of list.values()) {
 			this.entityManager.track(this.config.tableName, entity, this.versionOf(entity));
@@ -33,28 +33,28 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		return list;
 	}
 
-	public async delete(e: Entity) {
+	public async delete(e: Entity): Promise<void> {
 		this.entityManager.delete(this.config.tableName, e);
 	}
 
-	public async trackNew(e: Entity) {
+	public async trackNew(e: Entity): Promise<void> {
 		await super.addToCache(e);
 		this.entityManager.trackNew(this.config.tableName, e);
 	}
 
-	public async track(e: Entity) {
+	public async track(e: Entity): Promise<void> {
 		await super.addToCache(e);
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public async scan(input: ScanInput) {
+	public async scan(input: ScanInput): Promise<ManagedRepositoryGenerator<Entity>> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			await super.scan(input),
 		);
 	}
 
-	public async query(input: QueryInput) {
+	public async query(input: QueryInput): Promise<ManagedRepositoryGenerator<Entity>> {
 		return new ManagedRepositoryGenerator<Entity>(
 			this,
 			await super.query(input),

@@ -27,7 +27,7 @@ export default class DynamoRepository<Entity> {
 		}, config);
 	}
 
-	public async get(Key: DocumentClient.Key): Promise<Entity> {
+	public async get(Key: DocumentClient.Key): Promise<Entity | undefined> {
 		const input: DocumentClient.GetItemInput = {
 			Key,
 			TableName: this.config.tableName,
@@ -45,7 +45,7 @@ export default class DynamoRepository<Entity> {
 		return undefined;
 	}
 
-	public async getList(keys: DocumentClient.Key[]) {
+	public async getList(keys: DocumentClient.Key[]): Promise<Map<DocumentClient.Key, Entity | undefined>> {
 		const result = new Map<DocumentClient.Key, Entity>();
 		const items = await this.poweredDynamo.getList(this.config.tableName, keys);
 		for (const key of items.keys()) {
@@ -58,7 +58,7 @@ export default class DynamoRepository<Entity> {
 		return result;
 	}
 
-	public async scan(input: ScanInput) {
+	public async scan(input: ScanInput): Promise<SearchResult<Entity>> {
 		return this.buildEntityGenerator(
 			input,
 			await this.poweredDynamo.scan(Object.assign({
@@ -67,7 +67,7 @@ export default class DynamoRepository<Entity> {
 		);
 	}
 
-	public async query(input: QueryInput) {
+	public async query(input: QueryInput): Promise<SearchResult<Entity>> {
 		return this.buildEntityGenerator(
 			input,
 			await this.poweredDynamo.query(Object.assign({
@@ -76,11 +76,11 @@ export default class DynamoRepository<Entity> {
 		);
 	}
 
-	protected versionOf(e: Entity): number {
+	protected versionOf(e: Entity): number | undefined {
 		return this.entityVersions.get(e);
 	}
 
-	protected registerEntityVersion(e: Entity, version: number) {
+	protected registerEntityVersion(e: Entity, version: number): void {
 		this.entityVersions.set(e, version);
 	}
 
@@ -101,7 +101,7 @@ export default class DynamoRepository<Entity> {
 		);
 	}
 
-	private requestInputIsOfIncompleteIndex(input: QueryInput | ScanInput) {
+	private requestInputIsOfIncompleteIndex(input: QueryInput | ScanInput): boolean {
 		return input.IndexName
 			&& this.config.secondaryIndexes
 			&& this.config.secondaryIndexes[input.IndexName]

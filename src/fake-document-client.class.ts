@@ -7,21 +7,16 @@ export type TableName = string;
 
 export default class FakeDocumentClient {
 
-	public stepMode: boolean;
-	public readonly collections: {[tableName: string]: {[hashKey: string]: {[rangeKey: string]: string}}};
-	private resumed: Promise<any>;
-	private resumedEventEmitter: EventEmitter;
-	private shouldFail: boolean;
+	public stepMode = false;
+	public readonly collections: {[tableName: string]: {[hashKey: string]: {[rangeKey: string]: string}}} = {};
+	private resumed: Promise<any> = Promise.resolve();
+	private resumedEventEmitter: EventEmitter = new EventEmitter();
+	private shouldFail = false;
 	private error: Error;
 
 	constructor(
 		private readonly keySchemas: {[tableName: string]: {hash: string, range?: string}},
 	) {
-		this.resumed = Promise.resolve();
-		this.stepMode = false;
-		this.resumedEventEmitter = new EventEmitter();
-		this.shouldFail = false;
-		this.collections = {};
 	}
 
 	public get(
