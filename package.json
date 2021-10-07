@@ -22,15 +22,13 @@
     }
   },
   "scripts": {
-    "prebuild": "yarn",
-    "build": "tsc",
-    "prebuild:check": "yarn prebuild",
     "build:check": "tsc --noEmit",
     "pretest": "yarn build",
     "test": "mocha",
     "style:check": "tslint -p .",
     "style:fix": "tslint -p . --fix",
-    "preversion": "yarn run build",
+    "preversion": "yarn tsc --build",
+    "postversion": "yarn tsc --build --clean",
     "precoverage": "yarn build",
     "coverage": "nyc mocha",
     "prepare": "husky install"

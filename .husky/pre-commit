@@ -2,6 +2,6 @@
 . "$(dirname "$0")/_/husky.sh"
 
 yarn install --clean
-yarn build:check
+yarn tsc --noEmit
 yarn nyc --reporter=text-summary mocha --reporter=dot --forbid-only --forbid-pending
 tslint -p .
