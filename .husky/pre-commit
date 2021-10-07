@@ -4,4 +4,4 @@
 yarn install --clean
 yarn tsc --noEmit
 yarn nyc --reporter=text-summary mocha --reporter=dot --forbid-only --forbid-pending
-tslint -p .
+yarn tslint -p .

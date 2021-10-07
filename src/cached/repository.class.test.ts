@@ -4,17 +4,18 @@ import {beforeEach, describe, it} from "mocha";
 import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
 import DynamoCachedRepository from "./repository.class";
+import {DynamoDB} from 'aws-sdk';
 
 describe("Having a repository with cache", () => {
 
 	const keySchema = {hash: "id"};
 
-	interface IMarshaled {
+	interface Marshaled {
 		id: string;
 		marshaled: true;
 	}
 
-	interface IEntity {
+	interface Entity {
 		id: string;
 		marshaled: false;
 	}
@@ -22,13 +23,13 @@ describe("Having a repository with cache", () => {
 	const tableName = "tableName";
 
 	let documentClient: FakeDocumentClient;
-	let repository: DynamoCachedRepository<IEntity>;
+	let repository: DynamoCachedRepository<Entity>;
 
-	function unMarshal(m: IMarshaled): IEntity {
+	function unMarshal(m: DynamoDB.DocumentClient.AttributeMap): Entity {
 		return Object.assign(JSON.parse(JSON.stringify(m)), {marshaled: false});
 	}
 
-	function marshal(e: IEntity): IMarshaled {
+	function marshal(e: Entity): Marshaled {
 		return Object.assign(JSON.parse(JSON.stringify(e)), {marshaled: true});
 	}
 
@@ -48,7 +49,7 @@ describe("Having a repository with cache", () => {
 	describe("when asking for not existent entity", () => {
 
 		const notExistentEntityId = "notExistentEntity";
-		let returnedEntity: IEntity;
+		let returnedEntity: Entity;
 
 		beforeEach(async () => {
 			returnedEntity = await repository.get({id: notExistentEntityId});
@@ -72,7 +73,7 @@ describe("Having a repository with cache", () => {
 
 		beforeEach(() => repository.addToCache({id: entityId, marshaled: false}));
 		describe("and asking again for the entity", () => {
-			let newReturnedEntity: IEntity;
+			let newReturnedEntity: Entity;
 			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));
 			it(
 				"should return correct entity",
@@ -91,7 +92,7 @@ describe("Having a repository with cache", () => {
 		const thirdEntityId = "thirdEntityId";
 		const entityKey = {id: entityId};
 
-		let marshaledEntity: IMarshaled;
+		let marshaledEntity: Marshaled;
 
 		beforeEach(async () => {
 			marshaledEntity = {id: entityId, marshaled: true};
@@ -102,7 +103,7 @@ describe("Having a repository with cache", () => {
 
 		describe("when asking for the entity", () => {
 
-			let returnedEntity: IEntity;
+			let returnedEntity: Entity;
 
 			beforeEach(async () => returnedEntity = await repository.get(entityKey));
 

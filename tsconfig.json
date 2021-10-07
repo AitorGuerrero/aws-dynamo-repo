@@ -3,8 +3,12 @@
         "module": "commonjs",
         "target": "esnext",
         "noImplicitAny": true,
+        "noImplicitThis": true,
         "sourceMap": true,
-        "declaration": true
+        "declaration": true,
+        "strictBindCallApply": true,
+        "strictFunctionTypes": true,
+        "alwaysStrict": true
     },
     "exclude": [
         "node_modules"
