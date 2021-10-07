@@ -14,8 +14,8 @@ describe("Having a managed repository", () => {
 	const keySchema = {hash: "id"};
 
 	class Entity {
-		public updated: boolean;
-		public toDelete: boolean;
+		public updated = false;
+		public toDelete = false;
 		public nested = {nestedUpdated: false, nestedToDelete: true};
 		constructor(public id: string) {}
 	}
@@ -70,14 +70,14 @@ describe("Having a managed repository", () => {
 				updated: false,
 			};
 			await documentClient.set(tableName, marshaledEntity);
-			entity = (await repository.get({id: entityId}));
+			entity = (await repository.get({id: entityId}))!;
 		});
 
 		describe("and searching for a entity already cached", () => {
 			let firstReturnedEntity: Entity;
 			let entities: Entity[];
 			beforeEach(async () => {
-				firstReturnedEntity = (await repository.get({id: entityId}));
+				firstReturnedEntity = (await repository.get({id: entityId}))!;
 				entities = await (await repository.scan({})).toArray();
 			});
 			it("should return a entity", () => expect(entities.length).to.be.eq(1));
@@ -107,7 +107,7 @@ describe("Having a managed repository", () => {
 		});
 
 		describe("and deleting a attribute", () => {
-			beforeEach(() => entity.toDelete = undefined);
+			beforeEach(() => entity.toDelete = undefined as any);
 			describe("and flushed", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {
@@ -118,7 +118,7 @@ describe("Having a managed repository", () => {
 		});
 
 		describe("and deleting a nested attribute", () => {
-			beforeEach(async () => entity.nested.nestedToDelete = undefined);
+			beforeEach(async () => entity.nested.nestedToDelete = undefined as any);
 			describe("and flushed", () => {
 				beforeEach(() => entityManager.flush());
 				it("should update the item in the collection", async () => {
@@ -172,7 +172,7 @@ describe("Having a managed repository", () => {
 			});
 			describe("and asking for the entity", () => {
 				let loadedEntity: Entity;
-				beforeEach(async () => loadedEntity = await repository.get({id: entity.id}));
+				beforeEach(async () => loadedEntity = (await repository.get({id: entity.id}))!);
 				it("should return the same entity", () => {
 					expect(loadedEntity).to.be.equal(entity);
 				});
@@ -191,7 +191,7 @@ describe("Having a managed repository", () => {
 			});
 			describe("and asking for the new tracked entity", () => {
 				let loadedEntity: Entity;
-				beforeEach(async () => loadedEntity = (await repository.get({id: notExistingEntityId})));
+				beforeEach(async () => loadedEntity = (await repository.get({id: notExistingEntityId}))!);
 				it("should return the tracked entity", () => {
 					expect(loadedEntity).to.be.equal(entity);
 				});

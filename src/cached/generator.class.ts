@@ -25,7 +25,8 @@ export default class CachedRepositoryGenerator<Entity> implements SearchResult<E
 			value: new Promise<Entity>(async (rs) => {
 				const entity = await next.value;
 				await this.repository.addToCache(entity);
-				rs(this.repository.get(this.repository.getEntityKey(entity)));
+				const key = this.repository.getEntityKey(entity);
+				rs((await this.repository.get(key)) as Entity);
 			}),
 		};
 	}

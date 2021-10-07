@@ -34,7 +34,7 @@ export default class DynamoRepository<Entity> {
 		};
 		const response = await this.poweredDynamo.get(input)
 		if (response.Item !== undefined) {
-			const entity = this.config.unMarshal(response.Item);
+			const entity = this.config.unMarshal!(response.Item);
 			if (this.config.versionKey) {
 				this.entityVersions.set(entity, response.Item[this.config.versionKey]);
 			}
@@ -50,8 +50,13 @@ export default class DynamoRepository<Entity> {
 		const items = await this.poweredDynamo.getList(this.config.tableName, keys);
 		for (const key of items.keys()) {
 			const item = items.get(key);
-			const entity = this.config.unMarshal(item);
-			this.entityVersions.set(entity, item[this.config.versionKey]);
+			if (item === undefined) {
+				continue;
+			}
+			const entity = this.config.unMarshal!(item);
+			if (this.config.versionKey) {
+				this.entityVersions.set(entity, item[this.config.versionKey]);
+			}
 			result.set(key, entity);
 		}
 
@@ -102,8 +107,8 @@ export default class DynamoRepository<Entity> {
 	}
 
 	private requestInputIsOfIncompleteIndex(input: QueryInput | ScanInput): boolean {
-		return input.IndexName
-			&& this.config.secondaryIndexes
+		return input.IndexName !== undefined
+			&& this.config.secondaryIndexes !== undefined
 			&& this.config.secondaryIndexes[input.IndexName]
 			&& this.config.secondaryIndexes[input.IndexName].ProjectionType !== ProjectionType.all;
 	}

@@ -25,9 +25,9 @@ export default class EntityGenerator<Entity> implements SearchResult<Entity> {
 			done: false,
 			value: new Promise<Entity>(async (rs) => {
 				const marshaled = await next.value;
-				const entity = this.tableConfig.unMarshal(marshaled);
+				const entity = this.tableConfig.unMarshal!(marshaled);
 				if (this.tableConfig.versionKey) {
-					this.registerVersion(entity, this.versionOfEntity(marshaled));
+					this.registerVersion!(entity, this.versionOfEntity(marshaled));
 				}
 
 				rs(entity);
@@ -51,7 +51,7 @@ export default class EntityGenerator<Entity> implements SearchResult<Entity> {
 	public async slice(amount: number) {
 		const result: Entity[] = [];
 		for (const entityPromise of this.generator) {
-			result.push(this.tableConfig.unMarshal(await entityPromise));
+			result.push(this.tableConfig.unMarshal!(await entityPromise));
 			if (result.length === amount) {
 				break;
 			}

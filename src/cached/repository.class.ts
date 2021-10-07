@@ -15,7 +15,7 @@ export interface CachedRepositoryTableConfig<Entity> extends RepositoryTableConf
 export default class DynamoCachedRepository<Entity> extends DynamoRepository<Entity> {
 
 	protected static getEntityKey<Entity>(entity: Entity, tableConfig: CachedRepositoryTableConfig<unknown>): DocumentClient.Key {
-		const marshaledEntity = tableConfig.marshal(entity);
+		const marshaledEntity = tableConfig.marshal!(entity);
 		const key: DocumentClient.Key = {};
 		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
 		if (tableConfig.keySchema.range) {
@@ -40,14 +40,17 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 		if (!this.cache.has(key[this.config.keySchema.hash])) {
 			this.cache.set(key[this.config.keySchema.hash], new Map());
 		}
-		if (!this.cache.get(key[this.config.keySchema.hash]).has(key[this.config.keySchema.range])) {
-			this.cache.get(key[this.config.keySchema.hash]).set(key[this.config.keySchema.range], super.get(key));
+		// @ts-ignore
+		if (!this.cache.get(key[this.config.keySchema.hash])!.has(key[this.config.keySchema.range])) {
+			// @ts-ignore
+			this.cache.get(key[this.config.keySchema.hash])!.set(key[this.config.keySchema.range], super.get(key));
 		}
-		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
+		// @ts-ignore
+		return this.cache.get(key[this.config.keySchema.hash])!.get(key[this.config.keySchema.range])!;
 	}
 
 	public async getList(keys: DocumentClient.Key[]): Promise<Map<DocumentClient.Key, Entity | undefined>> {
-		const keysMap = new Map<DocumentClient.Key, Entity>();
+		const keysMap = new Map<DocumentClient.Key, Entity | undefined>();
 		await this.loadEntities(this.filterNotCachedKeys(keys));
 		for (const key of keys) {
 			keysMap.set(key, await this.getFromCache(key));
@@ -106,17 +109,19 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 
 	private keyIsCached(key: DocumentClient.Key): boolean {
 		return this.cache.has(key[this.config.keySchema.hash])
+			// @ts-ignore
 			&& this.cache.get(key[this.config.keySchema.hash]).has(key[this.config.keySchema.range]);
 	}
 
 	private getFromCache(key: DocumentClient.Key): Promise<Entity | undefined> {
 		if (!this.cache.has(key[this.config.keySchema.hash])) {
-			return;
+			return Promise.resolve() as Promise<undefined>;
 		}
+		// @ts-ignore
 		return this.cache.get(key[this.config.keySchema.hash]).get(key[this.config.keySchema.range]);
 	}
 
-	private async addToCacheByKey(key: DocumentClient.Key, entity: Entity): Promise<void> {
+	private async addToCacheByKey(key: DocumentClient.Key, entity: Entity | undefined): Promise<void> {
 		const currentCached = await this.getFromCache(key);
 		if (currentCached !== undefined) {
 			if (currentCached !== entity) {
@@ -130,8 +135,7 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 		if (!this.cache.has(key[this.config.keySchema.hash])) {
 			this.cache.set(key[this.config.keySchema.hash], new Map());
 		}
-		this.cache
-			.get(key[this.config.keySchema.hash])
-			.set(key[this.config.keySchema.range], Promise.resolve(entity));
+		// @ts-ignore
+		this.cache.get(key[this.config.keySchema.hash]).set(key[this.config.keySchema.range], Promise.resolve(entity));
 	}
 }

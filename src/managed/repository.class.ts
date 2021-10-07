@@ -19,7 +19,9 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 
 	public async get(key: DynamoDB.DocumentClient.Key): Promise<Entity | undefined> {
 		const result = await super.get(key);
-		this.entityManager.track(this.config.tableName, result, this.versionOf(result));
+		if (result !== undefined) {
+			this.entityManager.track(this.config.tableName, result, this.versionOf(result));
+		}
 
 		return result;
 	}
@@ -27,7 +29,9 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 	public async getList(keys: DynamoDB.DocumentClient.Key[]): Promise<Map<DynamoDB.DocumentClient.Key, Entity | undefined>> {
 		const list = await super.getList(keys);
 		for (const entity of list.values()) {
-			this.entityManager.track(this.config.tableName, entity, this.versionOf(entity));
+			if (entity !== undefined) {
+				this.entityManager.track(this.config.tableName, entity, this.versionOf(entity));
+			}
 		}
 
 		return list;

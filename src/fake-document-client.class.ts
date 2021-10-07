@@ -12,7 +12,7 @@ export default class FakeDocumentClient {
 	private resumed: Promise<any> = Promise.resolve();
 	private resumedEventEmitter: EventEmitter = new EventEmitter();
 	private shouldFail = false;
-	private error: Error;
+	private error?: Error;
 
 	constructor(
 		private readonly keySchemas: {[tableName: string]: {hash: string, range?: string}},
@@ -26,6 +26,7 @@ export default class FakeDocumentClient {
 			await this.awaitFlush();
 			this.guardShouldFail();
 			const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+			// @ts-ignore
 			const rangeKey = input.Key[this.keySchemas[input.TableName].range];
 			this.ensureHashKey(input.TableName, hashKey);
 			const marshaled = this.collections[input.TableName][hashKey][rangeKey];
@@ -51,13 +52,16 @@ export default class FakeDocumentClient {
 			this.guardShouldFail();
 			const response: DocumentClient.BatchGetItemOutput = {Responses: {}};
 			for (const tableName in input.RequestItems) {
+				// @ts-ignore
 				response.Responses[tableName] = [];
 				for (const request of input.RequestItems[tableName].Keys) {
 					const hashKey = request[this.keySchemas[tableName].hash];
+					// @ts-ignore
 					const rangeKey = request[this.keySchemas[tableName].range];
 					this.ensureHashKey(tableName, hashKey);
 					const item = this.collections[tableName][hashKey][rangeKey];
 					if (item !== undefined) {
+						// @ts-ignore
 						response.Responses[tableName].push(JSON.parse(item));
 					}
 				}
@@ -73,6 +77,7 @@ export default class FakeDocumentClient {
 				await this.awaitFlush();
 				this.guardShouldFail();
 				const response: DocumentClient.ScanOutput = {Items: []};
+				// @ts-ignore
 				const startKey = this.getStartKey(input.TableName, input.ExclusiveStartKey);
 				const existingHashKeys = Object.keys(this.collections[input.TableName]);
 				let hashKey = startKey.hash;
@@ -80,6 +85,7 @@ export default class FakeDocumentClient {
 				let rangeKeys = Object.keys(this.collections[input.TableName][hashKey]);
 				while (this.collections[input.TableName][hashKey] !== undefined) {
 					while (rangeKey !== undefined && this.collections[input.TableName][hashKey][rangeKey] !== undefined) {
+						// @ts-ignore
 						response.Items.push(JSON.parse(this.collections[input.TableName][hashKey][rangeKey]));
 						rangeKey = rangeKeys[rangeKeys.indexOf(rangeKey) + 1];
 					}
@@ -93,6 +99,7 @@ export default class FakeDocumentClient {
 				if (hashKey !== undefined) {
 					response.LastEvaluatedKey = {
 						[this.keySchemas[input.TableName].hash]: hashKey,
+						// @ts-ignore
 						[this.keySchemas[input.TableName].range]: rangeKey,
 					};
 				}
@@ -107,8 +114,10 @@ export default class FakeDocumentClient {
 				await this.awaitFlush();
 				this.guardShouldFail();
 				const hashKey = input.Item[this.keySchemas[input.TableName].hash];
+				// @ts-ignore
 				const rangeKey = input.Item[this.keySchemas[input.TableName].range];
 				this.ensureHashKey(input.TableName, hashKey);
+
 				this.collections[input.TableName][hashKey][rangeKey] = JSON.stringify(input.Item);
 			return ({})
 			}};
@@ -121,7 +130,9 @@ export default class FakeDocumentClient {
 
 		return {promise: async () => {
 				const hashKey = input.Key[this.keySchemas[input.TableName].hash];
+				// @ts-ignore
 				const rangeKey = input.Key[this.keySchemas[input.TableName].range];
+				// @ts-ignore
 				this.collections[input.TableName][hashKey][rangeKey] = undefined;
 			return ({})
 			}};
@@ -149,6 +160,7 @@ export default class FakeDocumentClient {
 
 		hash = exclusiveStartKey[this.keySchemas[tableName].hash];
 		const rangeKeys = Object.keys(this.collections[tableName][exclusiveStartKey[this.keySchemas[tableName].hash]]);
+		// @ts-ignore
 		range = rangeKeys[rangeKeys.indexOf(exclusiveStartKey[this.keySchemas[tableName].range]) + 1];
 		if (range === undefined) {
 			const hashKeys = Object.keys(this.collections[tableName]);
@@ -166,7 +178,7 @@ export default class FakeDocumentClient {
 	}
 
 	private guardShouldFail() {
-		if (this.shouldFail === false) {
+		if (!this.shouldFail) {
 			return;
 		}
 

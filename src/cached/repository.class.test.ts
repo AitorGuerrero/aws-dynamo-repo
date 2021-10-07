@@ -49,11 +49,9 @@ describe("Having a repository with cache", () => {
 	describe("when asking for not existent entity", () => {
 
 		const notExistentEntityId = "notExistentEntity";
-		let returnedEntity: Entity;
+		let returnedEntity: undefined;
 
-		beforeEach(async () => {
-			returnedEntity = await repository.get({id: notExistentEntityId});
-		});
+		beforeEach(async () => returnedEntity = (await repository.get({id: notExistentEntityId})) as undefined);
 		it("should not return it", async () => {
 			expect(returnedEntity).to.be.undefined;
 		});
@@ -74,7 +72,7 @@ describe("Having a repository with cache", () => {
 		beforeEach(() => repository.addToCache({id: entityId, marshaled: false}));
 		describe("and asking again for the entity", () => {
 			let newReturnedEntity: Entity;
-			beforeEach(async () => newReturnedEntity = await repository.get({id: entityId}));
+			beforeEach(async () => newReturnedEntity = (await repository.get({id: entityId})) as Entity);
 			it(
 				"should return correct entity",
 				async () => {
@@ -105,7 +103,7 @@ describe("Having a repository with cache", () => {
 
 			let returnedEntity: Entity;
 
-			beforeEach(async () => returnedEntity = await repository.get(entityKey));
+			beforeEach(async () => returnedEntity = (await repository.get(entityKey)) as Entity);
 
 			it("should return the unmarshaled entity", async () => {
 				expect(returnedEntity.id).to.be.eq(entityId);
