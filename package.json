@@ -3,6 +3,9 @@
   "version": "5.0.0",
   "description": "Repositories for DynamoDB",
   "main": "./src/index.js",
+  "engines": {
+    "node": ">=14.17.0"
+  },
   "exports": {
     ".": "./src/index.js",
     "./cached": "./src/cached/index.js",
