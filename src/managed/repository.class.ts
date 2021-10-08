@@ -2,14 +2,14 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import DynamoCachedRepository, {CachedRepositoryTableConfig} from "../cached/repository.class";
-import ManagedRepositoryGenerator from "./generator.class";
+import CachedRepository from "../cached/repository.class";
 import {QueryInput, ScanInput} from '../repository.class';
+import {TableConfig} from '../cached';
 
-export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
+export default class Repository<Entity> extends CachedRepository<Entity> {
 
 	constructor(
-		config: CachedRepositoryTableConfig<Entity>,
+		config: TableConfig<Entity>,
 		dynamo: PoweredDynamo,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
@@ -51,17 +51,17 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public async scan(input: ScanInput): Promise<ManagedRepositoryGenerator<Entity>> {
-		return new ManagedRepositoryGenerator<Entity>(
-			this,
-			await super.scan(input),
-		);
+	public async* scan(input: ScanInput): AsyncGenerator<Entity> {
+		for await (const entity of super.scan(input)) {
+			await this.track(entity);
+			yield entity;
+		}
 	}
 
-	public async query(input: QueryInput): Promise<ManagedRepositoryGenerator<Entity>> {
-		return new ManagedRepositoryGenerator<Entity>(
-			this,
-			await super.query(input),
-		);
+	public async* query(input: QueryInput): AsyncGenerator<Entity> {
+		for await (const entity of super.query(input)) {
+			await this.track(entity);
+			yield entity;
+		}
 	}
 }

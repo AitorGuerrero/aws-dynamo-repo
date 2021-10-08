@@ -3,7 +3,7 @@ import {expect} from "chai";
 import {beforeEach, describe, it} from "mocha";
 import PoweredDynamo from "powered-dynamo";
 import FakeDocumentClient from "../fake-document-client.class";
-import DynamoCachedRepository from "./repository.class";
+import Repository from "./repository.class";
 import {DynamoDB} from 'aws-sdk';
 
 describe("Having a repository with cache", () => {
@@ -23,7 +23,7 @@ describe("Having a repository with cache", () => {
 	const tableName = "tableName";
 
 	let documentClient: FakeDocumentClient;
-	let repository: DynamoCachedRepository<Entity>;
+	let repository: Repository<Entity>;
 
 	function unMarshal(m: DynamoDB.DocumentClient.AttributeMap): Entity {
 		return Object.assign(JSON.parse(JSON.stringify(m)), {marshaled: false});
@@ -35,7 +35,7 @@ describe("Having a repository with cache", () => {
 
 	beforeEach(() => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
-		repository = new DynamoCachedRepository(
+		repository = new Repository(
 			new PoweredDynamo(documentClient as any as DocumentClient),
 			{
 				keySchema,
@@ -125,7 +125,10 @@ describe("Having a repository with cache", () => {
 		describe("when searching for entities", () => {
 			it("should return the entities", async () => {
 				const getNextEntity = await repository.scan({});
-				const entities = await getNextEntity.toArray();
+				let entities: Entity[] = [];
+				for await (const e of getNextEntity) {
+					entities.push(e);
+				}
 				expect(entities.length).eq(3);
 				expect(entities[0].id).eq(entityId);
 				expect(entities[0].marshaled).eq(false);

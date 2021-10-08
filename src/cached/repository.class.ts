@@ -1,20 +1,14 @@
 import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import RepositoryTableConfig from "../repository-table-config.interface";
 import DynamoRepository, {QueryInput, ScanInput} from '../repository.class';
-import SearchResult from "../search-result.interface";
-import CachedRepositoryGenerator from "./generator.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
+import {TableConfig} from './table-config';
 
-export interface CachedRepositoryTableConfig<Entity> extends RepositoryTableConfig<Entity> {
-	marshal?: (e: Entity) => DocumentClient.AttributeMap;
-}
+export default class Repository<Entity> extends DynamoRepository<Entity> {
 
-export default class DynamoCachedRepository<Entity> extends DynamoRepository<Entity> {
-
-	protected static getEntityKey<Entity>(entity: Entity, tableConfig: CachedRepositoryTableConfig<unknown>): DocumentClient.Key {
+	protected static getEntityKey<Entity>(entity: Entity, tableConfig: TableConfig<unknown>): DocumentClient.Key {
 		const marshaledEntity = tableConfig.marshal!(entity);
 		const key: DocumentClient.Key = {};
 		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
@@ -29,7 +23,7 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 
 	constructor(
 		protected dynamo: PoweredDynamo,
-		config: CachedRepositoryTableConfig<Entity>,
+		config: TableConfig<Entity>,
 		public readonly eventEmitter: EventEmitter = new EventEmitter(),
 	) {
 		super(dynamo, config);
@@ -57,7 +51,7 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 	}
 
 	public getEntityKey(e: Entity): DocumentClient.Key {
-		return DynamoCachedRepository.getEntityKey(e, this.config);
+		return Repository.getEntityKey(e, this.config);
 	}
 
 	public async addToCache(e: Entity): Promise<void> {
@@ -68,18 +62,18 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 		this.cache.clear();
 	}
 
-	public async scan(input: ScanInput): Promise<SearchResult<Entity>> {
-		return new CachedRepositoryGenerator<Entity>(
-			this,
-			await super.scan(input),
-		);
+	public async* scan(input: ScanInput): AsyncGenerator<Entity> {
+		for await (const entity of super.scan(input)) {
+			await this.addToCache(entity);
+			yield (await this.get(this.getEntityKey(entity))) as Entity;
+		}
 	}
 
-	public async query(input: QueryInput): Promise<SearchResult<Entity>> {
-		return new CachedRepositoryGenerator<Entity>(
-			this,
-			await super.query(input),
-		);
+	public async* query(input: QueryInput): AsyncGenerator<Entity> {
+		for await (const entity of super.query(input)) {
+			await this.addToCache(entity);
+			yield (await this.get(this.getEntityKey(entity))) as Entity;
+		}
 	}
 
 	private filterNotCachedKeys(keys: DocumentClient.Key[]): DocumentClient.Key[] {

@@ -1,7 +1,7 @@
-import ManagedRepositoryGenerator from './generator.class';
-import DynamoManagedRepository from './repository.class';
+import { TableConfig } from '../cached';
+import Repository from './repository.class';
 
 export {
-	ManagedRepositoryGenerator,
-	DynamoManagedRepository,
+	Repository,
+	TableConfig,
 }

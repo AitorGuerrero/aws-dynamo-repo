@@ -1,7 +1,7 @@
-import CachedRepositoryGenerator from "./generator.class";
-import DynamoCachedRepository from "./repository.class";
+import Repository from "./repository.class";
+import { TableConfig } from "./table-config";
 
 export {
-	DynamoCachedRepository,
-	CachedRepositoryGenerator,
+	Repository,
+	TableConfig,
 }

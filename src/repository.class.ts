@@ -1,10 +1,6 @@
 import {DynamoDB} from "aws-sdk";
 import PoweredDynamo from "powered-dynamo";
-import IGenerator from "powered-dynamo/generator.interface";
-import EntityGenerator from "./generator.class";
-import IncompleteIndexGenerator from "./incomplete-index-generator";
 import RepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
-import SearchResult from "./search-result.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
@@ -63,19 +59,19 @@ export default class DynamoRepository<Entity> {
 		return result;
 	}
 
-	public async scan(input: ScanInput): Promise<SearchResult<Entity>> {
+	public scan(input: ScanInput): AsyncGenerator<Entity> {
 		return this.buildEntityGenerator(
 			input,
-			await this.poweredDynamo.scan(Object.assign({
+			this.poweredDynamo.scan(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);
 	}
 
-	public async query(input: QueryInput): Promise<SearchResult<Entity>> {
+	public query(input: QueryInput): AsyncGenerator<Entity> {
 		return this.buildEntityGenerator(
 			input,
-			await this.poweredDynamo.query(Object.assign({
+			this.poweredDynamo.query(Object.assign({
 				TableName: this.config.tableName,
 			}, input)),
 		);
@@ -85,25 +81,44 @@ export default class DynamoRepository<Entity> {
 		return this.entityVersions.get(e);
 	}
 
-	protected registerEntityVersion(e: Entity, version: number): void {
-		this.entityVersions.set(e, version);
+	private buildEntityGenerator(input: QueryInput | ScanInput, generator: AsyncGenerator<DynamoDB.DocumentClient.AttributeMap>): AsyncGenerator<Entity> {
+		return this.requestInputIsOfIncompleteIndex(input) ? this.incompleteIndexEntityGenerator(generator) : this.entityGenerator(generator);
 	}
 
-	private buildEntityGenerator(input: QueryInput | ScanInput, generator: IGenerator): SearchResult<Entity> {
-		if (this.requestInputIsOfIncompleteIndex(input)) {
-			return  new IncompleteIndexGenerator<Entity>(
-				this,
-				generator,
-				this.config,
-				(entity, version) => this.registerEntityVersion(entity, version),
-			);
+	private async* entityGenerator(itemGenerator: AsyncGenerator<DynamoDB.DocumentClient.AttributeMap>): AsyncGenerator<Entity> {
+		for await (const item of itemGenerator) {
+			const entity = this.config.unMarshal!(item);
+			if (this.config.versionKey) {
+				this.entityVersions.set(entity, this.versionOfEntity(item));
+			}
+
+			yield entity;
+		}
+	}
+
+	private async* incompleteIndexEntityGenerator(itemGenerator: AsyncGenerator<DynamoDB.DocumentClient.AttributeMap>): AsyncGenerator<Entity> {
+		for await (const item of itemGenerator) {
+			yield (await this.get(this.buildKeyFromAttributeMap(item))) as Entity;
+		}
+	}
+
+	private buildKeyFromAttributeMap(item: DynamoDB.DocumentClient.AttributeMap) {
+		const key: DynamoDB.DocumentClient.Key = {
+			[this.config.keySchema.hash]: item[this.config.keySchema.hash],
+		};
+		if (this.config.keySchema.range) {
+			key[this.config.keySchema.range] = item[this.config.keySchema.range];
 		}
 
-		return new EntityGenerator<Entity>(
-			generator,
-			this.config,
-			(entity, version) => this.entityVersions.set(entity, version),
-		);
+		return key;
+	}
+
+	private versionOfEntity(item: DynamoDB.DocumentClient.AttributeMap) {
+		if (this.config.versionKey === undefined) {
+			return undefined;
+		}
+
+		return item[this.config.versionKey];
 	}
 
 	private requestInputIsOfIncompleteIndex(input: QueryInput | ScanInput): boolean {
