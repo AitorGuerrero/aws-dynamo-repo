@@ -1,6 +1,7 @@
 .idea
 test.*
-**/*.ts
-!**/*.d.ts
 .nyc_output
+.husky
+.mocharc.yaml
+.nycrc.yaml
 node_modules
