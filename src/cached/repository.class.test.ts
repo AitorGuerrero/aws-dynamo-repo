@@ -22,7 +22,7 @@ describe("Having a repository with cache", () => {
 	const tableName = "tableName";
 
 	let documentClient: FakeDocumentClient;
-	let repository: DynamoCachedRepository<IEntity>;
+	let repository: DynamoCachedRepository<IEntity, IMarshaled>;
 
 	function unMarshal(m: IMarshaled): IEntity {
 		return Object.assign(JSON.parse(JSON.stringify(m)), {marshaled: false});

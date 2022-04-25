@@ -2,18 +2,16 @@ import {DynamoDB} from "aws-sdk";
 import {DynamoEntityManager} from "dynamo-entity-manager";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
-import DynamoCachedRepository, {ICachedRepositoryTableConfig} from "../cached/repository.class";
-import IQueryInput from "../query-input.interface";
-import IRepositoryTableConfig from "../repository-table-config.interface";
-import IScanInput from "../scan-input.interface";
+import DynamoCachedRepository, {CachedRepositoryTableConfig} from "../cached/repository.class";
+import QueryInput from "../query-input.interface";
+import ScanInput from "../scan-input.interface";
 import ManagedRepositoryGenerator from "./generator.class";
+import {DocumentClient} from "aws-sdk/clients/dynamodb";
 
-export default class DynamoManagedRepository<Entity> extends DynamoCachedRepository<Entity> {
-
-	protected config: IRepositoryTableConfig<Entity>;
+export default class DynamoManagedRepository<Entity, Marshaled extends DocumentClient.AttributeMap> extends DynamoCachedRepository<Entity, Marshaled> {
 
 	constructor(
-		config: ICachedRepositoryTableConfig<Entity>,
+		config: CachedRepositoryTableConfig<Entity, Marshaled>,
 		dynamo: PoweredDynamo,
 		private entityManager: DynamoEntityManager,
 		eventEmitter?: EventEmitter,
@@ -51,15 +49,15 @@ export default class DynamoManagedRepository<Entity> extends DynamoCachedReposit
 		this.entityManager.track(this.config.tableName, e, this.versionOf(e));
 	}
 
-	public async scan(input: IScanInput) {
-		return new ManagedRepositoryGenerator<Entity>(
+	public async scan(input: ScanInput) {
+		return new ManagedRepositoryGenerator<Entity, Marshaled>(
 			this,
 			await super.scan(input),
 		);
 	}
 
-	public async query(input: IQueryInput) {
-		return new ManagedRepositoryGenerator<Entity>(
+	public async query(input: QueryInput) {
+		return new ManagedRepositoryGenerator<Entity, Marshaled>(
 			this,
 			await super.query(input),
 		);

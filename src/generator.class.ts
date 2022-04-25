@@ -1,17 +1,17 @@
-import {DynamoDB} from "aws-sdk";
-import IGenerator from "powered-dynamo/generator.interface";
-import IRepositoryTableConfig from "./repository-table-config.interface";
-import ISearchResult from "./search-result.interface";
+import Generator from "powered-dynamo/generator.interface";
+import RepositoryTableConfig from "./repository-table-config.interface";
+import SearchResult from "./search-result.interface";
+import {DocumentClient} from "aws-sdk/clients/dynamodb";
 
-export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
+export default class EntityGenerator<Entity, Marshaled extends DocumentClient.AttributeMap> implements SearchResult<Entity> {
 
 	constructor(
-		protected generator: IGenerator,
-		protected tableConfig: IRepositoryTableConfig<Entity>,
+		protected generator: Generator,
+		protected tableConfig: RepositoryTableConfig<Entity, Marshaled>,
 		private registerVersion?: (e: Entity, v: number) => void,
 	) {}
 
-	public [Symbol.iterator](): ISearchResult<Entity> {
+	public [Symbol.iterator](): SearchResult<Entity> {
 		return this;
 	}
 
@@ -60,7 +60,7 @@ export default class EntityGenerator<Entity> implements ISearchResult<Entity> {
 		return result;
 	}
 
-	private versionOfEntity(item: DynamoDB.DocumentClient.AttributeMap) {
+	private versionOfEntity(item: DocumentClient.AttributeMap) {
 		if (this.tableConfig.versionKey === undefined) {
 			return undefined;
 		}

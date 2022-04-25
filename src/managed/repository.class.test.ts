@@ -34,12 +34,12 @@ describe("Having a managed repository", () => {
 
 	let documentClient: FakeDocumentClient;
 	let entityManager: DynamoEntityManager;
-	let repository: DynamoManagedRepository<Entity>;
+	let repository: DynamoManagedRepository<Entity, any>;
 
 	beforeEach(async () => {
 		documentClient = new FakeDocumentClient({[tableName]: keySchema});
 		entityManager = new DynamoEntityManager(
-			new ParallelFlusher(new PoweredDynamo(documentClient as any as DocumentClient)),
+			new ParallelFlusher(documentClient as any as DocumentClient),
 			[{
 				keySchema: {hash: "id", range: undefined},
 				tableName,

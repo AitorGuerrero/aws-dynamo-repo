@@ -2,7 +2,7 @@ import {DynamoDB} from "aws-sdk";
 import {EventEmitter} from "events";
 import PoweredDynamo from "powered-dynamo";
 import IQueryInput from "../query-input.interface";
-import IRepositoryTableConfig from "../repository-table-config.interface";
+import RepositoryTableConfig from "../repository-table-config.interface";
 import DynamoRepository from "../repository.class";
 import IScanInput from "../scan-input.interface";
 import ISearchResult from "../search-result.interface";
@@ -10,13 +10,13 @@ import CachedRepositoryGenerator from "./generator.class";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export interface ICachedRepositoryTableConfig<Entity> extends IRepositoryTableConfig<Entity> {
+export interface CachedRepositoryTableConfig<Entity, Marshaled extends DocumentClient.AttributeMap> extends RepositoryTableConfig<Entity, Marshaled> {
 	marshal?: (e: Entity) => DocumentClient.AttributeMap;
 }
 
-export default class DynamoCachedRepository<Entity> extends DynamoRepository<Entity> {
+export default class DynamoCachedRepository<Entity, Marshaled extends DocumentClient.AttributeMap> extends DynamoRepository<Entity, Marshaled> {
 
-	protected static getEntityKey<Entity>(entity: Entity, tableConfig: ICachedRepositoryTableConfig<unknown>) {
+	protected static getEntityKey<Entity, Marshaled extends DocumentClient.AttributeMap>(entity: Entity, tableConfig: CachedRepositoryTableConfig<Entity, Marshaled>) {
 		const marshaledEntity = tableConfig.marshal(entity);
 		const key: DocumentClient.Key = {};
 		key[tableConfig.keySchema.hash] = marshaledEntity[tableConfig.keySchema.hash];
@@ -31,7 +31,7 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 
 	constructor(
 		protected dynamo: PoweredDynamo,
-		config: ICachedRepositoryTableConfig<Entity>,
+		config: CachedRepositoryTableConfig<Entity, Marshaled>,
 		public readonly eventEmitter: EventEmitter = new EventEmitter(),
 	) {
 		super(dynamo, config);
@@ -71,14 +71,14 @@ export default class DynamoCachedRepository<Entity> extends DynamoRepository<Ent
 	}
 
 	public async scan(input: IScanInput): Promise<ISearchResult<Entity>> {
-		return new CachedRepositoryGenerator<Entity>(
+		return new CachedRepositoryGenerator<Entity, Marshaled>(
 			this,
 			await super.scan(input),
 		);
 	}
 
 	public async query(input: IQueryInput): Promise<ISearchResult<Entity>> {
-		return new CachedRepositoryGenerator<Entity>(
+		return new CachedRepositoryGenerator<Entity, Marshaled>(
 			this,
 			await super.query(input),
 		);

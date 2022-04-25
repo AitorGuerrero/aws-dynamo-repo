@@ -1,5 +1,5 @@
-import IIterator from "./iterator.interface";
+import Iterator from "./iterator.interface";
 
-export default interface IIterable<Entity> {
-	[Symbol.iterator](): IIterator<Entity>;
+export default interface Iterable<Entity> {
+	[Symbol.iterator](): Iterator<Entity>;
 }

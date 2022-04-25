@@ -1,11 +1,12 @@
 import IIterator from "../iterator.interface";
 import ISearchResult from "../search-result.interface";
 import DynamoCachedRepository from "./repository.class";
+import {DocumentClient} from "aws-sdk/clients/dynamodb";
 
-export default class CachedRepositoryGenerator<Entity> implements ISearchResult<Entity> {
+export default class CachedRepositoryGenerator<Entity, Marshaled extends DocumentClient.AttributeMap> implements ISearchResult<Entity> {
 
 	constructor(
-		protected repository: DynamoCachedRepository<Entity>,
+		protected repository: DynamoCachedRepository<Entity, Marshaled>,
 		public generator: ISearchResult<Entity>,
 	) {
 	}

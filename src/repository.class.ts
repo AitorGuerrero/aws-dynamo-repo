@@ -4,22 +4,22 @@ import IGenerator from "powered-dynamo/generator.interface";
 import EntityGenerator from "./generator.class";
 import IncompleteIndexGenerator from "./incomplete-index-generator";
 import IQueryInput from "./query-input.interface";
-import IRepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
+import RepositoryTableConfig, {ProjectionType} from "./repository-table-config.interface";
 import IDynamoRepository from "./repository.interface";
 import IScanInput from "./scan-input.interface";
 import ISearchResult from "./search-result.interface";
 
 import DocumentClient = DynamoDB.DocumentClient;
 
-export default class DynamoRepository<Entity> implements IDynamoRepository<Entity> {
+export default class DynamoRepository<Entity, Marshaled extends DocumentClient.AttributeMap> implements IDynamoRepository<Entity> {
 
-	protected readonly config: IRepositoryTableConfig<Entity>;
+	protected readonly config: RepositoryTableConfig<Entity, Marshaled>;
 
 	private entityVersions = new Map<Entity, number>();
 
 	constructor(
 		protected poweredDynamo: PoweredDynamo,
-		config: IRepositoryTableConfig<Entity>,
+		config: RepositoryTableConfig<Entity, Marshaled>,
 	) {
 		this.config = Object.assign({
 			marshal: (e: Entity) => JSON.parse(JSON.stringify(e)) as DocumentClient.AttributeMap,
@@ -86,7 +86,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 
 	private buildEntityGenerator(input: IQueryInput | IScanInput, generator: IGenerator): ISearchResult<Entity> {
 		if (this.requestInputIsOfIncompleteIndex(input)) {
-			return  new IncompleteIndexGenerator<Entity>(
+			return  new IncompleteIndexGenerator<Entity, Marshaled>(
 				this,
 				generator,
 				this.config,
@@ -94,7 +94,7 @@ export default class DynamoRepository<Entity> implements IDynamoRepository<Entit
 			);
 		}
 
-		return new EntityGenerator<Entity>(
+		return new EntityGenerator<Entity, Marshaled>(
 			generator,
 			this.config,
 			(entity, version) => this.entityVersions.set(entity, version),

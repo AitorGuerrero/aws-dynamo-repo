@@ -1,3 +1,3 @@
-export default interface IIterator<Entity> {
+export default interface Iterator<Entity> {
 	next(): {done?: boolean, value: Promise<Entity>};
 }
