@@ -2,8 +2,8 @@
   "name": "aws-dynamo-repo",
   "version": "3.5.1",
   "description": "Repositories for DynamoDB",
-  "main": "./src/index.js",
-  "types": "./src/index.d.ts",
+  "main": "./index.js",
+  "types": "./index.d.ts",
   "scripts": {
     "prebuild": "yarn",
     "build": "tsc",
