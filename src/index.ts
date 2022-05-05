@@ -1,4 +1,4 @@
-import DynamoCachedRepository from "./cached/repository.class";
+import DynamoCachedRepository, {CachedRepositoryTableConfig} from "./cached/repository.class";
 import DynamoManagedRepository from "./managed/repository.class";
 import IQueryInput from "./query-input.interface";
 import RepositoryTableConfig, * as repositoryTableConfig from "./repository-table-config.interface";
@@ -12,6 +12,7 @@ export {
 	RepositoryTableConfig,
 	repositoryTableConfig,
 	DynamoCachedRepository,
+	CachedRepositoryTableConfig,
 	DynamoManagedRepository,
 	IQueryInput,
 	IScanInput,
